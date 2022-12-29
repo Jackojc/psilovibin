@@ -1,2 +1,2 @@
 # psilovibin
-A bytebeat-ish interactive programming language for generating MIDI
+A small language with a REPL interface for livecoding with MIDI.
