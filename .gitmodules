@@ -1,0 +1,4 @@
+
+[submodule "modules/conflict"]
+	path = modules/conflict
+	url = https://github.com/qookei/conflict
