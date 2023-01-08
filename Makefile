@@ -6,14 +6,14 @@ include config.mk
 all: options pv
 
 config:
-	mkdir -p build/
+	@mkdir -p build/
 
 options:
 	@printf "cxx \033[32m$(CXX)\033[0m | "
-	@printf "dbg \033[32m$(DBG)\033[0m\n"
+	@printf "release \033[32m$(release)\033[0m\n"
 
 pv: config options
-	$(CXX) $(PV_CXXFLAGS) src/pv.cpp -o build/pv $(PV_LDFLAGS)
+	@$(CXX) $(PV_CXXFLAGS) src/pv.cpp -o build/pv $(PV_LDFLAGS)
 
 clean:
 	rm -rf build/pv pv-$(VERSION).tar.gz

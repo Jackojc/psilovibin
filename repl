@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+
+rlwrap -i -a -S'> ' -pYellow -fdoc/completions.txt -f. build/pv

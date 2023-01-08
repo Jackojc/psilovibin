@@ -22,13 +22,13 @@ PV_REL_CXXFLAGS=-std=$(PV_CXXSTD) $(PV_CXXWARN) $(PV_CPPFLAGS) \
 	-march=native -O3 $(CXXFLAGS) $(INC)
 PV_REL_LDFLAGS=-flto -s $(LIB) $(LDFLAGS)
 
-DBG?=no
+release?=no
 
-ifeq ($(DBG),no)
+ifeq ($(release),yes)
 	PV_CPPFLAGS=$(PV_REL_CPPFLAGS)
 	PV_CXXFLAGS=$(PV_REL_CXXFLAGS)
 	PV_LDFLAGS=$(PV_REL_LDFLAGS)
-else ifeq ($(DBG),yes)
+else ifeq ($(release),no)
 	PV_CPPFLAGS=$(PV_DBG_CPPFLAGS)
 	PV_CXXFLAGS=$(PV_DBG_CXXFLAGS)
 	PV_LDFLAGS=$(PV_DBG_LDFLAGS)
