@@ -7,6 +7,7 @@ all: options pv
 
 config:
 	@mkdir -p build/
+	@touch build/history
 
 options:
 	@printf "cxx \033[32m$(CXX)\033[0m | "
