@@ -1,22 +1,28 @@
 comment ::= ? #.*$ ?
 identifier ::= ? {XID_Start}{XID_Continue}* ?
 number ::= ? [0-9]+ ? | ? 0x[0-9A-Fa-f]+ ?
-channel ::= ? 1 | ... | 16 ?
+
+string_or_identifier ::= <string> | <identifier>
+number_or_identifier ::= <number> | <identifier>
+midi_or_identifier ::= <midi> | <identifier>
+
+midi ::= <string_or_identifier> ':' <number_or_identifier>
 
 command ::=
 	'go' |
 	'stop' |
-	'left' <integer> |
-	'right' <integer> |
-	'velocity' <integer> |
-	'bpm' <integer> |
-	'time' <integer>
+	'left' <number> |
+	'right' <number> |
+	'velocity' <number> |
+	'bpm' <number> |
+	'time' <number>
 
-action ::= <identifier> <command>+ [ ',' <action> ]
+action ::= <midi_or_identifier> <command>+
 
-let ::= 'let' ( <identifier> <integer> )+
-instrument ::= 'instr' ( <identifier> <string> <channel> )+
-control ::= 'ctrl' ( <identifier> <integer> )+
+let ::= 'let' ( <identifier> ( <literal> | <midi> ) )+
+instrument ::= 'instr' ( <identifier> <midi> )+
+control ::= 'ctrl' ( <identifier> <number_or_identifier> )+
 
-expr ::= ( <let> | <instruction> | <control> | <action> ) '\n'
+expr ::= <let> | <instruction> | <control> | <action>
+program ::= <expr> [ ',' <expr> ]* '\n'
 
