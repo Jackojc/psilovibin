@@ -60,8 +60,8 @@ namespace pv {
 
 	inline std::ostream& report_handler(std::ostream& os, Report x) {
 		return empty(x.sv) ?
-			println(os, "[fail] ", x.kind):
-			println(os, "[fail] `", x.sv, "` ", x.kind);
+			println(os, "[" PV_ERR "fail" PV_RESET "] ", x.kind):
+			println(os, "[" PV_ERR "fail" PV_RESET "] `", x.sv, "` ", x.kind);
 	}
 
 	inline std::ostream& operator<<(std::ostream& os, Report x) {
@@ -242,6 +242,8 @@ namespace pv {
 		lx.prev = lx.peek;
 		lx.peek = sym;
 
+		PV_LOG(LogLevel::INF, out);
+
 		return out;
 	}
 
@@ -250,8 +252,6 @@ namespace pv {
 	}
 
 	template <typename F> constexpr void expect(Lexer& lx, F&& fn, ErrorKind x) {
-		// PV_LOG(LogLevel::WRN, lx.peek);
-
 		if (not fn(lx.peek))
 			report(lx.peek.sv, x);
 	}
@@ -303,7 +303,7 @@ namespace pv {
 
 
 	inline std::vector<Symbol> program(Context& ctx, Lexer& lx) {
-		PV_LOG(LogLevel::INF);
+		PV_LOG(LogLevel::WRN);
 
 		std::vector<Symbol> tree;
 		tree.emplace_back(lx.peek.sv, SymbolKind::PROGRAM);
@@ -330,7 +330,7 @@ namespace pv {
 	}
 
 	inline std::vector<Symbol> expression(Context& ctx, Lexer& lx) {
-		PV_LOG(LogLevel::INF);
+		PV_LOG(LogLevel::WRN);
 
 		switch (lx.peek.kind) {
 			case SymbolKind::LET:        return let(ctx, lx);
@@ -351,7 +351,7 @@ namespace pv {
 
 
 	inline std::vector<Symbol> control(Context& ctx, Lexer& lx) {
-		PV_LOG(LogLevel::INF);
+		PV_LOG(LogLevel::WRN);
 
 		expect(lx, is(SymbolKind::CONTROL), ErrorKind::EXPECT_CONTROL);
 		Symbol ctrl = take(lx, ctx.syms);
@@ -375,7 +375,7 @@ namespace pv {
 	}
 
 	inline std::vector<Symbol> instrument(Context& ctx, Lexer& lx) {
-		PV_LOG(LogLevel::INF);
+		PV_LOG(LogLevel::WRN);
 
 		expect(lx, is(SymbolKind::INSTRUMENT), ErrorKind::EXPECT_INSTRUMENT);
 		Symbol instr = take(lx, ctx.syms);
@@ -405,7 +405,7 @@ namespace pv {
 	}
 
 	inline std::vector<Symbol> let(Context& ctx, Lexer& lx) {
-		PV_LOG(LogLevel::INF);
+		PV_LOG(LogLevel::WRN);
 
 		expect(lx, is(SymbolKind::LET), ErrorKind::EXPECT_LET);
 		Symbol let = take(lx, ctx.syms);
@@ -435,7 +435,7 @@ namespace pv {
 
 
 	inline std::vector<Symbol> action(Context& ctx, Lexer& lx) {
-		PV_LOG(LogLevel::INF);
+		PV_LOG(LogLevel::WRN);
 
 		// TODO: Expect MIDI here aswell as identifier
 		expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
@@ -465,7 +465,7 @@ namespace pv {
 	}
 
 	inline std::vector<Symbol> command(Context& ctx, Lexer& lx) {
-		PV_LOG(LogLevel::INF);
+		PV_LOG(LogLevel::WRN);
 
 		expect(lx, is_command, ErrorKind::EXPECT_COMMAND);
 		Symbol command = take(lx, ctx.syms);
@@ -492,7 +492,7 @@ namespace pv {
 	}
 
 	inline Symbol literal(Context& ctx, Lexer& lx) {
-		PV_LOG(LogLevel::INF);
+		PV_LOG(LogLevel::WRN);
 		expect(lx, is_literal, ErrorKind::EXPECT_LITERAL);
 		return take(lx, ctx.syms);
 	}

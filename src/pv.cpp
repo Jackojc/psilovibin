@@ -33,7 +33,9 @@ int main(int, const char*[]) {
 			std::vector<Symbol> syms = program(ctx, lx);
 
 			for (Symbol s: syms)
-				println(std::cout, s);
+				PV_LOG(LogLevel::INF, s);
+
+			println(std::cout, "[" PV_OK "ok" PV_RESET "]");
 		}
 
 		catch (Report x) {

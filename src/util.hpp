@@ -47,17 +47,37 @@ namespace pv {
 
 // Logging
 namespace pv {
-	#define PV_RESET "\x1b[0m"
-	#define PV_BOLD  "\x1b[1m"
+	#ifndef PV_ANSI_DISABLE
+		#define PV_RESET   "\x1b[0m"
+		#define PV_BOLD    "\x1b[1m"
 
-	#define PV_BLACK   "\x1b[30m"
-	#define PV_RED     "\x1b[31m"
-	#define PV_GREEN   "\x1b[32m"
-	#define PV_YELLOW  "\x1b[33m"
-	#define PV_BLUE    "\x1b[34m"
-	#define PV_MAGENTA "\x1b[35m"
-	#define PV_CYAN    "\x1b[36m"
-	#define PV_WHITE   "\x1b[37m"
+		#define PV_BLACK   "\x1b[30m"
+		#define PV_RED     "\x1b[31m"
+		#define PV_GREEN   "\x1b[32m"
+		#define PV_YELLOW  "\x1b[33m"
+		#define PV_BLUE    "\x1b[34m"
+		#define PV_MAGENTA "\x1b[35m"
+		#define PV_CYAN    "\x1b[36m"
+		#define PV_WHITE   "\x1b[37m"
+
+		#define PV_ERR     "\x1b[33;1m"
+		#define PV_OK      "\x1b[34m"
+	#else
+		#define PV_RESET   ""
+		#define PV_BOLD    ""
+
+		#define PV_BLACK   ""
+		#define PV_RED     ""
+		#define PV_GREEN   ""
+		#define PV_YELLOW  ""
+		#define PV_BLUE    ""
+		#define PV_MAGENTA ""
+		#define PV_CYAN    ""
+		#define PV_WHITE   ""
+
+		#define PV_ERR     ""
+		#define PV_OK      ""
+	#endif
 
 	#ifndef NDEBUG
 		namespace detail {
