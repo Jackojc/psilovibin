@@ -5,15 +5,20 @@
 #include <vector>
 #include <iostream>
 
+// JACK Audio
 extern "C" {
 	#include <jack/jack.h>
 	#include <jack/midiport.h>
 	#include <jack/ringbuffer.h>
 }
 
+// Core
 #include <util.hpp>
 #include <view.hpp>
 #include <pv.hpp>
+
+// Passes
+#include <printer.hpp>
 
 #include <conflict/conflict.hpp>
 
@@ -28,13 +33,17 @@ int main(int, const char*[]) {
 			Lexer lx { View { buf.data(), buf.data() + buf.size() }};
 			Symbol sym = take(lx, ctx.syms);  // Prepare the lexer.
 
-			// while (lx.peek.kind != SymbolKind::TERM)
-				// std::cout << take(lx, ctx.syms) << '\n';
 			std::vector<Symbol> syms = program(ctx, lx);
 
-			for (Symbol s: syms)
-				PV_LOG(LogLevel::INF, s);
+			PV_DBG_RUN([&] {  // Print flat AST.
+				for (Symbol s: syms)
+					PV_LOG(LogLevel::INF, s);
+			} ());
 
+			// Passes.
+			printer(ctx, syms);
+
+			// Everything went okay.
 			println(std::cout, "[" PV_OK "ok" PV_RESET "]");
 		}
 

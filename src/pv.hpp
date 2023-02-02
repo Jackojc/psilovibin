@@ -61,7 +61,7 @@ namespace pv {
 	inline std::ostream& report_handler(std::ostream& os, Report x) {
 		return empty(x.sv) ?
 			println(os, "[" PV_ERR "fail" PV_RESET "] ", x.kind):
-			println(os, "[" PV_ERR "fail" PV_RESET "] `", x.sv, "` ", x.kind);
+			println(os, "[" PV_ERR "fail" PV_RESET "] ", x.kind, ": `", x.sv, "`");
 	}
 
 	inline std::ostream& operator<<(std::ostream& os, Report x) {
@@ -473,6 +473,7 @@ namespace pv {
 		std::vector<Symbol> tree;
 		tree.push_back(command);
 
+		// TODO: Parse multiple commands after identifier.
 		switch (command.kind) {
 			case SymbolKind::LEFT:  // Integer argument
 			case SymbolKind::RIGHT:
@@ -481,6 +482,11 @@ namespace pv {
 			case SymbolKind::TIME: {
 				expect(lx, is(SymbolKind::INTEGER), ErrorKind::EXPECT_INTEGER);
 				tree.push_back(take(lx, ctx.syms));
+			} break;
+
+			case SymbolKind::GO:  // No arguments
+			case SymbolKind::STOP: {
+				tree.emplace_back(lx.peek.sv, SymbolKind::NONE);
 			} break;
 
 			default: break;
@@ -496,6 +502,52 @@ namespace pv {
 		expect(lx, is_literal, ErrorKind::EXPECT_LITERAL);
 		return take(lx, ctx.syms);
 	}
+
+	template <typename... Ts>
+	using SwitchCallback = bool(*)(
+		Context& ctx,
+		std::vector<Symbol>& tree,
+		std::vector<Symbol>::iterator,
+		std::vector<Symbol>::iterator&,
+		Ts&&...
+	);
+
+	template <typename... Ts>
+	inline std::vector<Symbol>::iterator visitor(
+		SwitchCallback<Ts...> callback,
+		Context& ctx,
+		std::vector<Symbol>& tree,
+		std::vector<Symbol>::iterator it,
+		Ts&&... args
+	) {
+		if (it == tree.end())
+			return it;
+
+		std::vector<Symbol>::iterator current = it++;
+		bool matched = callback(ctx, tree, current, it, std::forward<Ts>(args)...);
+
+		if (not matched)
+			PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
+
+		return it;
+	}
+
+	// Visit a block (i.e. a run of code terminated by `end`).
+	// This is a common pattern that shows up in most visitors that
+	// traverse the AST like a tree rather than a vector.
+	// template <typename F, typename... Ts>
+	// inline std::vector<Symbol>::iterator visit(
+	// 	F&& fn,
+	// 	Context& ctx,
+	// 	std::vector<Symbol>& tree,
+	// 	std::vector<Symbol>::iterator it,
+	// 	Ts&&... args
+	// ) {
+	// 	while (it->kind != SymbolKind::END)
+	// 		it = visitor<Ts...>(fn, ctx, tree, it, std::forward<Ts>(args)...);
+
+	// 	return it + 1;
+	// }
 }
 
 #endif

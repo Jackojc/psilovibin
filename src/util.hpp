@@ -60,7 +60,7 @@ namespace pv {
 		#define PV_CYAN    "\x1b[36m"
 		#define PV_WHITE   "\x1b[37m"
 
-		#define PV_ERR     "\x1b[33;1m"
+		#define PV_ERR     "\x1b[31;1m"
 		#define PV_OK      "\x1b[34m"
 	#else
 		#define PV_RESET   ""
