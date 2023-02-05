@@ -4,8 +4,12 @@
 /*
 	HEADERS
 
+	#include <type_traits>
+	#include <algorithm>
+	#include <array>
 	#include <vector>
 	#include <unordered_set>
+	#include <string_view>
 	#include <iostream>
 */
 
@@ -19,6 +23,7 @@ namespace pv {
 		X(UNDEFINED,       "undefined") \
 		\
 		X(UNEXPECTED_TOKEN, "unexpected token") \
+		X(INVALID_AST,      "invalid tree") \
 		\
 		X(EXPECT_COMMAND,    "expected a command") \
 		X(EXPECT_EXPRESSION, "expected an expression") \
@@ -35,12 +40,17 @@ namespace pv {
 	#undef X
 
 	namespace detail {
-		#define X(a, b) b,
-			constexpr const char* ERROR_TO_STR[] = { ERROR_KINDS };
+		#define X(a, b) std::string_view { b },
+			constexpr std::array ERROR_TO_STR = { ERROR_KINDS };
 		#undef X
 
-		constexpr const char* error_to_str(ErrorKind x) {
+		constexpr std::string_view error_to_str(ErrorKind x) {
 			return ERROR_TO_STR[static_cast<size_t>(x)];
+		}
+
+		constexpr size_t error_padding(size_t n) {
+			constexpr size_t max = std::max_element(detail::ERROR_TO_STR.begin(), detail::ERROR_TO_STR.end())->size();
+			return n > max ? max : max - n;
 		}
 	}
 
@@ -134,12 +144,17 @@ namespace pv {
 	#undef X
 
 	namespace detail {
-		#define X(a, b) b,
-			constexpr const char* SYMBOL_TO_STR[] = { SYMBOL_KINDS };
+		#define X(a, b) std::string_view { b },
+			constexpr std::array SYMBOL_TO_STR = { SYMBOL_KINDS };
 		#undef X
 
-		constexpr const char* symbol_to_str(SymbolKind x) {
+		constexpr std::string_view symbol_to_str(SymbolKind x) {
 			return detail::SYMBOL_TO_STR[static_cast<size_t>(x)];
+		}
+
+		constexpr size_t symbol_padding(size_t n = 0) {
+			constexpr size_t max = std::max_element(detail::SYMBOL_TO_STR.begin(), detail::SYMBOL_TO_STR.end())->size();
+			return n > max ? max : max - n;
 		}
 	}
 
@@ -313,7 +328,7 @@ namespace pv {
 
 		tree.insert(tree.end(), expr.begin(), expr.end());
 
-		if (lx.peek.kind == SymbolKind::COMMA) {
+		while (lx.peek.kind == SymbolKind::COMMA) {
 			Symbol comma = take(lx, ctx.syms);
 
 			expect(lx, is_expr, ErrorKind::EXPECT_EXPRESSION);
@@ -503,18 +518,9 @@ namespace pv {
 		return take(lx, ctx.syms);
 	}
 
-	template <typename... Ts>
-	using SwitchCallback = bool(*)(
-		Context& ctx,
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator,
-		std::vector<Symbol>::iterator&,
-		Ts&&...
-	);
-
-	template <typename... Ts>
+	template <typename F, typename... Ts>
 	inline std::vector<Symbol>::iterator visitor(
-		SwitchCallback<Ts...> callback,
+		const F& callback,
 		Context& ctx,
 		std::vector<Symbol>& tree,
 		std::vector<Symbol>::iterator it,
@@ -523,11 +529,11 @@ namespace pv {
 		if (it == tree.end())
 			return it;
 
-		std::vector<Symbol>::iterator current = it++;
-		bool matched = callback(ctx, tree, current, it, std::forward<Ts>(args)...);
+		auto [sv, kind] = *it++;
+		bool matched = callback(ctx, tree, sv, kind, it, std::forward<Ts>(args)...);
 
 		if (not matched)
-			PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
+			PV_LOG(LogLevel::WRN, "unhandled symbol: `", kind, "`");
 
 		return it;
 	}
@@ -535,19 +541,24 @@ namespace pv {
 	// Visit a block (i.e. a run of code terminated by `end`).
 	// This is a common pattern that shows up in most visitors that
 	// traverse the AST like a tree rather than a vector.
-	// template <typename F, typename... Ts>
-	// inline std::vector<Symbol>::iterator visit(
-	// 	F&& fn,
-	// 	Context& ctx,
-	// 	std::vector<Symbol>& tree,
-	// 	std::vector<Symbol>::iterator it,
-	// 	Ts&&... args
-	// ) {
-	// 	while (it->kind != SymbolKind::END)
-	// 		it = visitor<Ts...>(fn, ctx, tree, it, std::forward<Ts>(args)...);
+	template <typename F, typename... Ts>
+	inline std::vector<Symbol>::iterator visit_block(
+		F&& fn,
+		Context& ctx,
+		std::vector<Symbol>& tree,
+		std::vector<Symbol>::iterator it,
+		Ts&&... args
+	) {
+		std::vector<Symbol>::iterator before = it;
 
-	// 	return it + 1;
-	// }
+		while (it != tree.end() and cmp_none(it->kind, SymbolKind::END, SymbolKind::TERM))
+			it = visitor(fn, ctx, tree, it, std::forward<Ts>(args)...);
+
+		if (it->kind != SymbolKind::END)
+			report(before->sv, ErrorKind::INVALID_AST);
+
+		return it + 1;
+	}
 }
 
 #endif
