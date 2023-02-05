@@ -1,8 +1,12 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <type_traits>
+#include <algorithm>
 #include <unordered_set>
 #include <vector>
+#include <array>
+#include <string_view>
 #include <iostream>
 
 // JACK Audio
@@ -17,8 +21,12 @@ extern "C" {
 #include <view.hpp>
 #include <pv.hpp>
 
-// Passes
+// Debug passes
 #include <printer.hpp>
+#include <dot.hpp>
+
+// Passes
+// ...
 
 #include <conflict/conflict.hpp>
 
@@ -35,13 +43,12 @@ int main(int, const char*[]) {
 
 			std::vector<Symbol> syms = program(ctx, lx);
 
-			PV_DBG_RUN([&] {  // Print flat AST.
-				for (Symbol s: syms)
-					PV_LOG(LogLevel::INF, s);
-			} ());
+			// Debug passes.
+			PV_DBG_RUN(printer(ctx, syms));
+			PV_DBG_RUN(dot(ctx, syms));
 
-			// Passes.
-			printer(ctx, syms);
+			// Passes
+			// ...
 
 			// Everything went okay.
 			println(std::cout, "[" PV_OK "ok" PV_RESET "]");

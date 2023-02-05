@@ -5,6 +5,9 @@
 	HEADERS
 
 	#include <iostream>
+	#include <array>
+	#include <string_view>
+	#include <string>
 */
 
 // Macros
@@ -118,17 +121,21 @@ namespace pv {
 	#undef X
 
 	namespace detail {
-		#define X(a, b) b,
-			constexpr const char* LOG2STR[] = { LOG_LEVELS };
+		#define X(a, b) std::string_view { b },
+			constexpr std::array LOG_TO_STR = { LOG_LEVELS };
 		#undef X
 
-		constexpr const char* log2str(LogLevel x) {
-			return LOG2STR[static_cast<size_t>(x)];
+		constexpr std::string_view log_to_str(LogLevel x) {
+			return LOG_TO_STR[static_cast<size_t>(x)];
+		}
+
+		constexpr size_t log_padding() {
+			return std::max_element(detail::LOG_TO_STR.begin(), detail::LOG_TO_STR.end())->size();
 		}
 	}
 
 	inline std::ostream& operator<<(std::ostream& os, LogLevel x) {
-		return print(os, detail::log2str(x));
+		return print(os, detail::log_to_str(x));
 	}
 
 	#define PV_LOG(...) \
