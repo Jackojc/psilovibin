@@ -11,11 +11,17 @@ midi ::= <string_or_identifier> ':' <number_or_identifier>
 command ::=
 	'go' |
 	'stop' |
+	'clear' |
 	'left' <number> |
 	'right' <number> |
 	'velocity' <number> |
 	'bpm' <number> |
 	'time' <number>
+
+top_level_command ::=
+	'go' |
+	'stop' |
+	'clear'
 
 action ::= <midi_or_identifier> <command>+
 
@@ -23,6 +29,6 @@ let ::= 'let' ( <identifier> ( <literal> | <midi> ) )+
 instrument ::= 'instr' ( <identifier> <midi> )+
 control ::= 'ctrl' ( <identifier> <number_or_identifier> )+
 
-expr ::= <let> | <instruction> | <control> | <action>
+expr ::= <let> | <instruction> | <control> | <action> | <top_level_command>
 program ::= <expr> [ ',' <expr> ]* '\n'
 
