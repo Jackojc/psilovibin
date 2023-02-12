@@ -2,31 +2,38 @@ comment ::= ? #.*$ ?
 identifier ::= ? {XID_Start}{XID_Continue}* ?
 number ::= ? [0-9]+ ? | ? 0x[0-9A-Fa-f]+ ?
 
+literal ::= <number> | <string>
+
 string_or_identifier ::= <string> | <identifier>
 number_or_identifier ::= <number> | <identifier>
 midi_or_identifier ::= <midi> | <identifier>
+midi_or_literal ::= <midi> | <literal>
 
-midi ::= <string_or_identifier> ':' <number_or_identifier>
+midi ::= 'dev' <string_or_identifier> <number_or_identifier>
+
+pattern ::= '[' ( <number_or_identifier> | <pattern> )* ']'
 
 command ::=
 	'go' |
 	'stop' |
 	'clear' |
-	'left' <number> |
-	'right' <number> |
-	'velocity' <number> |
-	'bpm' <number> |
-	'time' <number>
+	'left' <number_or_identifier> |
+	'right' <number_or_identifier> |
+	'velocity' <number_or_identifier> |
+	'bpm' <number_or_identifier> |
+	'time' <number_or_identifier> |
+	<pattern>
 
 top_level_command ::=
 	'go' |
 	'stop' |
-	'clear'
+	'clear' |
+	'info'
 
 action ::= <midi_or_identifier> <command>+
 
-let ::= 'let' ( <identifier> ( <literal> | <midi> ) )+
-instrument ::= 'instr' ( <identifier> <midi> )+
+let ::= 'let' ( <identifier> <midi_or_literal> )+
+instrument ::= 'instr' ( <identifier> <midi_or_identifier> )+
 control ::= 'ctrl' ( <identifier> <number_or_identifier> )+
 
 expr ::= <let> | <instruction> | <control> | <action> | <top_level_command>

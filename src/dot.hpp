@@ -64,13 +64,13 @@ namespace pv {
 				it = visit_block(dot_impl, ctx, tree, it, id, self_id);
 			} break;
 
-			case SymbolKind::PROGRAM: {  // Top level node.
-				println(std::cout, "digraph G {");
-				println(std::cout, "  node [shape=Mrecord style=filled fillcolor=\"#bfbfbf\"];");
-					detail::edge(std::cout, parent_id, self_id, kind);
-					it = visit_block(dot_impl, ctx, tree, it, id, self_id);
-				println(std::cout, "}");
-			} break;
+			// case SymbolKind::PROGRAM: {  // Top level node.
+			// 	println(std::cout, "digraph G {");
+			// 	println(std::cout, "  node [shape=Mrecord style=filled fillcolor=\"#bfbfbf\"];");
+			// 		detail::edge(std::cout, parent_id, self_id, kind);
+			// 		it = visit_block(dot_impl, ctx, tree, it, id, self_id);
+			// 	println(std::cout, "}");
+			// } break;
 
 			default: return false;
 		}

@@ -17,7 +17,7 @@ namespace pv {
 		inline std::ostream& indent(std::ostream& os, size_t n) {
 			while (n--) print(os, PV_BLACK "| " PV_RESET);
 			return os;
-		};
+		}
 	}
 
 	bool printer_impl(
@@ -45,23 +45,35 @@ namespace pv {
 				detail::indent(std::cout, spaces); println(std::cout, colour, kind, " `", sv, "`", PV_RESET);
 			} break;
 
-			case SymbolKind::GO:  // Commands with no arguments.
-			case SymbolKind::STOP:
-
 			case SymbolKind::LEFT:  // Commands with arguments.
 			case SymbolKind::RIGHT:
 			case SymbolKind::VELOCITY:
 			case SymbolKind::BPM:
-			case SymbolKind::TIME:
-
-			case SymbolKind::LET:  // Expressions/Statements.
-			case SymbolKind::INSTRUMENT:
-			case SymbolKind::CONTROL:
-			case SymbolKind::ACTION:
-			case SymbolKind::PROGRAM: {  // Top level node.
+			case SymbolKind::TIME: {
 				detail::indent(std::cout, spaces); println(std::cout, colour, kind, " `", sv, "`", PV_RESET);
 					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
-				detail::indent(std::cout, spaces); println(std::cout, colour, SymbolKind::END, PV_RESET);
+			} break;
+
+			case SymbolKind::GO:  // Commands with no arguments.
+			case SymbolKind::STOP:
+			case SymbolKind::CLEAR:
+			case SymbolKind::INFO: {
+				detail::indent(std::cout, spaces); println(std::cout, colour, kind, PV_RESET);
+					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
+			} break;
+
+			case SymbolKind::SELECT:
+			case SymbolKind::ACTION: {
+				detail::indent(std::cout, spaces); println(std::cout, colour, kind, PV_RESET);
+					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
+			} break;
+
+			case SymbolKind::MIDI:  // Expressions/Statements with arguments.
+			case SymbolKind::LET:
+			case SymbolKind::INSTRUMENT:
+			case SymbolKind::CONTROL: {
+				detail::indent(std::cout, spaces); println(std::cout, colour, kind, " `", sv, "`", PV_RESET);
+					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
 			default: return false;
@@ -72,7 +84,7 @@ namespace pv {
 
 	inline std::vector<Symbol>::iterator printer(Context& ctx, std::vector<Symbol>& tree) {
 		PV_LOG(LogLevel::OK);
-		return visitor(printer_impl, ctx, tree, tree.begin(), 0ul);
+		return pass(printer_impl, ctx, tree, 0ul);
 	}
 }
 

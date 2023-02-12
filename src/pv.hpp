@@ -30,10 +30,15 @@ namespace pv {
 		X(EXPECT_INTEGER,    "expected an integer") \
 		X(EXPECT_STRING,     "expected a string") \
 		X(EXPECT_LITERAL,    "expected a literal") \
+		X(EXPECT_MIDI,       "expected a device") \
 		X(EXPECT_LET,        "expected let") \
 		X(EXPECT_IDENTIFIER, "expected an identifier") \
 		X(EXPECT_CONTROL,    "expected control") \
-		X(EXPECT_INSTRUMENT, "expected instrument")
+		X(EXPECT_INSTRUMENT, "expected instrument") \
+		\
+		X(EXPECT_MIDI_IDENT,   "expected device or identifier") \
+		X(EXPECT_MIDI_LITERAL, "expected device or literal") \
+		X(EXPECT_NUMBER_IDENT, "expected number or identifier")
 
 	#define X(a, b) a,
 		enum class ErrorKind: size_t { ERROR_KINDS };
@@ -118,7 +123,9 @@ namespace pv {
 	#define SYMBOL_KINDS \
 		X(NONE, "None") \
 		X(TERM, "EOF") \
-		X(END,  "End") \
+		\
+		X(SELECT, "Select") \
+		X(END,    "End") \
 		\
 		X(IDENTIFIER, "Identifier") \
 		X(INTEGER,    "Integer") \
@@ -132,12 +139,14 @@ namespace pv {
 		X(VELOCITY, "Velocity") \
 		X(BPM,      "BPM") \
 		X(TIME,     "Time") \
+		X(CLEAR,    "Clear") \
+		X(INFO,     "Info") \
 		\
+		X(MIDI,       "Midi") \
 		X(LET,        "Let") \
 		X(INSTRUMENT, "Instrument") \
 		X(CONTROL,    "Control") \
-		X(ACTION,     "Action") \
-		X(PROGRAM,    "Program")
+		X(ACTION,     "Action")
 
 	#define X(a, b) a,
 		enum class SymbolKind: size_t { SYMBOL_KINDS };
@@ -242,7 +251,10 @@ namespace pv {
 			else if (sym.sv == "velocity"_sv) sym.kind = SymbolKind::VELOCITY;
 			else if (sym.sv == "bpm"_sv)      sym.kind = SymbolKind::BPM;
 			else if (sym.sv == "time"_sv)     sym.kind = SymbolKind::TIME;
+			else if (sym.sv == "clear"_sv)    sym.kind = SymbolKind::CLEAR;
+			else if (sym.sv == "info"_sv)     sym.kind = SymbolKind::INFO;
 
+			else if (sym.sv == "midi"_sv)  sym.kind = SymbolKind::MIDI;
 			else if (sym.sv == "let"_sv)   sym.kind = SymbolKind::LET;
 			else if (sym.sv == "instr"_sv) sym.kind = SymbolKind::INSTRUMENT;
 			else if (sym.sv == "ctrl"_sv)  sym.kind = SymbolKind::CONTROL;
@@ -274,14 +286,33 @@ namespace pv {
 
 // Parser
 namespace pv {
+	// Store global information about program.
 	struct Context {
 		SymbolTable syms;
 	};
 
+	// Categories.
 	constexpr bool is_literal(Symbol x) {
 		return cmp_any(x.kind,
 			SymbolKind::INTEGER,
 			SymbolKind::STRING);
+	}
+
+	constexpr bool is_midi_or_ident(Symbol x) {
+		return cmp_any(x.kind,
+			SymbolKind::MIDI,
+			SymbolKind::IDENTIFIER);
+	}
+
+	constexpr bool is_midi_or_literal(Symbol x) {
+		return is_literal(x) or cmp_any(x.kind,
+			SymbolKind::MIDI);
+	}
+
+	constexpr bool is_number_or_ident(Symbol x) {
+		return cmp_any(x.kind,
+			SymbolKind::INTEGER,
+			SymbolKind::IDENTIFIER);
 	}
 
 	constexpr bool is_command(Symbol x) {
@@ -292,17 +323,52 @@ namespace pv {
 			SymbolKind::RIGHT,
 			SymbolKind::VELOCITY,
 			SymbolKind::BPM,
-			SymbolKind::TIME);
+			SymbolKind::TIME,
+			SymbolKind::CLEAR,
+			SymbolKind::INFO);
+	}
+
+	constexpr bool is_tl_command(Symbol x) {
+		return cmp_any(x.kind,
+			SymbolKind::GO,
+			SymbolKind::STOP,
+			SymbolKind::CLEAR,
+			SymbolKind::INFO);
 	}
 
 	constexpr bool is_expr(Symbol x) {
-		return is_command(x) or cmp_any(x.kind,
+		return is_tl_command(x) or cmp_any(x.kind,
 			SymbolKind::IDENTIFIER,
 			SymbolKind::CONTROL,
 			SymbolKind::INSTRUMENT,
-			SymbolKind::LET);
+			SymbolKind::LET,
+			SymbolKind::MIDI);
 	}
 
+	// Utilities
+	template <typename F>
+	inline std::vector<Symbol> block(View sv, SymbolKind kind, F&& fn) {
+		std::vector<Symbol> tree;
+		tree.emplace_back(sv, kind);
+
+		std::vector<Symbol> inner_tree = fn();
+		tree.insert(tree.end(), inner_tree.begin(), inner_tree.end());
+
+		tree.emplace_back(sv, SymbolKind::END);
+		return tree;
+	}
+
+	template <typename F>
+	inline std::vector<Symbol> block(Symbol sym, F&& fn) {
+		return block(sym.sv, sym.kind, std::forward<F>(fn));
+	}
+
+	inline std::vector<Symbol> cat(std::vector<Symbol> lhs, std::vector<Symbol> rhs) {
+		lhs.insert(lhs.end(), rhs.begin(), rhs.end());
+		return lhs;
+	}
+
+	// Parser functions.
 	inline std::vector<Symbol> program(Context&, Lexer&);
 	inline std::vector<Symbol> expression(Context&, Lexer&);
 
@@ -313,15 +379,14 @@ namespace pv {
 	inline std::vector<Symbol> action(Context&, Lexer&);
 	inline std::vector<Symbol> command(Context&, Lexer&);
 
-	inline Symbol midi(Context&, Lexer&);
-	inline Symbol literal(Context&, Lexer&);
+	inline std::vector<Symbol> midi(Context&, Lexer&);
+	inline std::vector<Symbol> literal(Context&, Lexer&);
 
 
 	inline std::vector<Symbol> program(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
 		std::vector<Symbol> tree;
-		tree.emplace_back(lx.peek.sv, SymbolKind::PROGRAM);
 
 		expect(lx, is_expr, ErrorKind::EXPECT_EXPRESSION);
 		std::vector<Symbol> expr = expression(ctx, lx);
@@ -339,8 +404,6 @@ namespace pv {
 
 		expect(lx, is(SymbolKind::TERM), ErrorKind::UNEXPECTED_TOKEN);
 
-		tree.emplace_back(lx.peek.sv, SymbolKind::END);
-
 		return tree;
 	}
 
@@ -348,11 +411,33 @@ namespace pv {
 		PV_LOG(LogLevel::WRN);
 
 		switch (lx.peek.kind) {
-			case SymbolKind::LET:        return let(ctx, lx);
+			case SymbolKind::LET:        return let(ctx, lx);  // Statements
 			case SymbolKind::INSTRUMENT: return instrument(ctx, lx);
 			case SymbolKind::CONTROL:    return control(ctx, lx);
 
-			case SymbolKind::IDENTIFIER: return action(ctx, lx);
+			case SymbolKind::GO:  // Top-level commands
+			case SymbolKind::STOP:
+			case SymbolKind::CLEAR:
+			case SymbolKind::INFO: {
+				std::vector<Symbol> tree;
+
+				tree.emplace_back(lx.peek.sv, SymbolKind::SELECT);
+				tree.emplace_back(lx.peek.sv, SymbolKind::NONE);
+				tree.emplace_back(lx.peek.sv, SymbolKind::END);
+
+				Symbol command = take(lx, ctx.syms);
+
+				tree.push_back(command);
+				tree.emplace_back(lx.peek.sv, SymbolKind::NONE);
+				tree.emplace_back(lx.prev.sv, SymbolKind::END);
+
+				return tree;
+			} break;
+
+			case SymbolKind::IDENTIFIER:
+			case SymbolKind::MIDI: {
+				return action(ctx, lx);  // Action
+			} break;
 
 			default: {
 				report(lx.peek.sv, ErrorKind::EXPECT_EXPRESSION);
@@ -371,20 +456,28 @@ namespace pv {
 		expect(lx, is(SymbolKind::CONTROL), ErrorKind::EXPECT_CONTROL);
 		Symbol ctrl = take(lx, ctx.syms);
 
-		expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
-		Symbol ident = take(lx, ctx.syms);
-
 		std::vector<Symbol> tree;
-		tree.emplace_back(ident.sv, SymbolKind::CONTROL);
 
-		// TODO: Read multiple identifier-number pairs.
+		do {
+			expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
+			Symbol ident = take(lx, ctx.syms);
 
-		// TODO: Expect either number or identifier here.
-		expect(lx, is(SymbolKind::INTEGER), ErrorKind::EXPECT_INTEGER);
-		Symbol integer = take(lx, ctx.syms);
-		tree.push_back(integer);
+			tree.emplace_back(ident.sv, SymbolKind::CONTROL);
 
-		tree.emplace_back(lx.prev.sv, SymbolKind::END);
+			expect(lx, is_number_or_ident, ErrorKind::EXPECT_NUMBER_IDENT);
+
+			if (lx.peek.kind == SymbolKind::INTEGER) {
+				Symbol integer = take(lx, ctx.syms);
+				tree.push_back(integer);
+			}
+
+			else if (lx.peek.kind == SymbolKind::IDENTIFIER) {
+				Symbol ident = take(lx, ctx.syms);
+				tree.push_back(ident);
+			}
+
+			tree.emplace_back(lx.prev.sv, SymbolKind::END);
+		} while (lx.peek.kind == SymbolKind::IDENTIFIER);
 
 		return tree;
 	}
@@ -395,26 +488,28 @@ namespace pv {
 		expect(lx, is(SymbolKind::INSTRUMENT), ErrorKind::EXPECT_INSTRUMENT);
 		Symbol instr = take(lx, ctx.syms);
 
-		expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
-		Symbol ident = take(lx, ctx.syms);
-
 		std::vector<Symbol> tree;
-		tree.emplace_back(ident.sv, SymbolKind::INSTRUMENT);
 
-		// TODO: Read multiple identifier-number pairs.
-		// TODO: Read either identifier or MIDI here.
+		do {
+			expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
+			Symbol ident = take(lx, ctx.syms);
 
-		// TODO: Parse string or identifier here for device name.
-		expect(lx, is(SymbolKind::STRING), ErrorKind::EXPECT_STRING);
-		Symbol str = take(lx, ctx.syms);
-		tree.push_back(str);
+			tree.emplace_back(ident.sv, SymbolKind::INSTRUMENT);
 
-		// TODO: Expect either number or identifier here.
-		expect(lx, is(SymbolKind::INTEGER), ErrorKind::EXPECT_INTEGER);
-		Symbol integer = take(lx, ctx.syms);
-		tree.push_back(integer);
+			expect(lx, is_midi_or_ident, ErrorKind::EXPECT_MIDI_IDENT);
 
-		tree.emplace_back(lx.prev.sv, SymbolKind::END);
+			if (lx.peek.kind == SymbolKind::MIDI) {
+				std::vector<Symbol> dev = midi(ctx, lx);
+				tree.insert(tree.end(), dev.begin(), dev.end());
+			}
+
+			else if (lx.peek.kind == SymbolKind::IDENTIFIER) {
+				Symbol ident = take(lx, ctx.syms);
+				tree.push_back(ident);
+			}
+
+			tree.emplace_back(lx.prev.sv, SymbolKind::END);
+		} while (lx.peek.kind == SymbolKind::IDENTIFIER);
 
 		return tree;
 	}
@@ -425,25 +520,23 @@ namespace pv {
 		expect(lx, is(SymbolKind::LET), ErrorKind::EXPECT_LET);
 		Symbol let = take(lx, ctx.syms);
 
-		expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
-		Symbol ident = take(lx, ctx.syms);
-
 		std::vector<Symbol> tree;
-		tree.emplace_back(ident.sv, SymbolKind::LET);
 
-		// TODO: Read multiple identifier-literal pairs.
-		// Let foo
-		//   123
-		// End
-		// Let bar
-		//   456
-		// End
+		do {
+			expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
+			Symbol ident = take(lx, ctx.syms);
 
-		expect(lx, is_literal, ErrorKind::EXPECT_LITERAL);
-		Symbol literal = take(lx, ctx.syms);
-		tree.push_back(literal);
+			tree.emplace_back(ident.sv, SymbolKind::LET);
 
-		tree.emplace_back(lx.prev.sv, SymbolKind::END);
+			expect(lx, is_midi_or_literal, ErrorKind::EXPECT_MIDI_LITERAL);
+			if (lx.peek.kind == SymbolKind::MIDI)
+				tree = cat(tree, midi(ctx, lx));
+
+			else if (is_literal(lx.peek))
+				tree = cat(tree, literal(ctx, lx));
+
+			tree.emplace_back(lx.prev.sv, SymbolKind::END);
+		} while (lx.peek.kind == SymbolKind::IDENTIFIER);
 
 		return tree;
 	}
@@ -452,29 +545,24 @@ namespace pv {
 	inline std::vector<Symbol> action(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		// TODO: Expect MIDI here aswell as identifier
-		expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
-		Symbol ident = take(lx, ctx.syms);
-
 		std::vector<Symbol> tree;
-		tree.emplace_back(ident.sv, SymbolKind::ACTION);
+		tree.emplace_back(lx.peek.sv, SymbolKind::SELECT);
 
-		// TODO: Read multiple identifier-command pairs.
-		// Action Foo
-		//   Velocity
-		//     127
-		//   End
-		// End
-		// Action foo
-		//   Euclide
-		//     4
-		//     16
-		//   End
-		// End
-		std::vector<Symbol> cmd = command(ctx, lx);
-		tree.insert(tree.end(), cmd.begin(), cmd.end());
+		expect(lx, is_midi_or_ident, ErrorKind::EXPECT_MIDI_IDENT);
+		if (lx.peek.kind == SymbolKind::MIDI) {
+			tree = cat(tree, midi(ctx, lx));
+		}
 
-		tree.emplace_back(lx.prev.sv, SymbolKind::END);
+		else if (lx.peek.kind == SymbolKind::IDENTIFIER) {
+			Symbol ident = take(lx, ctx.syms);
+			tree.push_back(ident);
+		}
+
+		tree.emplace_back(lx.peek.sv, SymbolKind::END);
+
+		expect(lx, is_command, ErrorKind::EXPECT_COMMAND);
+		while (is_command(lx.peek))
+			tree = cat(tree, command(ctx, lx));
 
 		return tree;
 	}
@@ -483,12 +571,11 @@ namespace pv {
 		PV_LOG(LogLevel::WRN);
 
 		expect(lx, is_command, ErrorKind::EXPECT_COMMAND);
-		Symbol command = take(lx, ctx.syms);
-
 		std::vector<Symbol> tree;
+
+		Symbol command = take(lx, ctx.syms);
 		tree.push_back(command);
 
-		// TODO: Parse multiple commands after identifier.
 		switch (command.kind) {
 			case SymbolKind::LEFT:  // Integer argument
 			case SymbolKind::RIGHT:
@@ -500,7 +587,8 @@ namespace pv {
 			} break;
 
 			case SymbolKind::GO:  // No arguments
-			case SymbolKind::STOP: {
+			case SymbolKind::STOP:
+			case SymbolKind::CLEAR: {
 				tree.emplace_back(lx.peek.sv, SymbolKind::NONE);
 			} break;
 
@@ -512,10 +600,31 @@ namespace pv {
 		return tree;
 	}
 
-	inline Symbol literal(Context& ctx, Lexer& lx) {
+	inline std::vector<Symbol> midi(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
+
+		std::vector<Symbol> tree;
+
+		expect(lx, is(SymbolKind::MIDI), ErrorKind::EXPECT_MIDI);
+		Symbol midi = take(lx, ctx.syms);
+
+		expect(lx, is(SymbolKind::STRING), ErrorKind::EXPECT_STRING);
+		Symbol str = take(lx, ctx.syms);
+
+		tree.emplace_back(str.sv, SymbolKind::MIDI);
+		tree = cat(tree, literal(ctx, lx));
+		tree.emplace_back(lx.peek.sv, SymbolKind::END);
+
+		return tree;
+	}
+
+	inline std::vector<Symbol> literal(Context& ctx, Lexer& lx) {
+		PV_LOG(LogLevel::WRN);
+
 		expect(lx, is_literal, ErrorKind::EXPECT_LITERAL);
-		return take(lx, ctx.syms);
+		Symbol lit = take(lx, ctx.syms);
+
+		return { lit };
 	}
 
 	template <typename F, typename... Ts>
@@ -558,6 +667,23 @@ namespace pv {
 			report(before->sv, ErrorKind::INVALID_AST);
 
 		return it + 1;
+	}
+
+	// Runs a pass by visiting every top level node until EOF is reached.
+	template <typename F, typename... Ts>
+	inline std::vector<Symbol>::iterator pass(
+		F&& fn,
+		Context& ctx,
+		std::vector<Symbol>& tree,
+		Ts&&... args
+	) {
+		std::vector<Symbol>::iterator it = tree.begin();
+		std::vector<Symbol>::iterator before = it;
+
+		while (it != tree.end() and it->kind != SymbolKind::TERM)
+			it = visitor(fn, ctx, tree, it, std::forward<Ts>(args)...);
+
+		return it;
 	}
 }
 
