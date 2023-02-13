@@ -15,7 +15,7 @@
 namespace pv {
 	namespace detail {
 		inline std::ostream& indent(std::ostream& os, size_t n) {
-			while (n--) print(os, PV_BLACK "| " PV_RESET);
+			while (n--) print(os, "    ");
 			return os;
 		}
 	}
@@ -36,13 +36,13 @@ namespace pv {
 
 		switch (kind) {
 			case SymbolKind::NONE: {
-				detail::indent(std::cout, spaces); println(std::cout, colour, kind, PV_RESET);
+				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 			} break;
 
 			case SymbolKind::STRING:  // Literals.
 			case SymbolKind::INTEGER:
 			case SymbolKind::IDENTIFIER: {
-				detail::indent(std::cout, spaces); println(std::cout, colour, kind, " `", sv, "`", PV_RESET);
+				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
 			} break;
 
 			case SymbolKind::LEFT:  // Commands with arguments.
@@ -50,7 +50,12 @@ namespace pv {
 			case SymbolKind::VELOCITY:
 			case SymbolKind::BPM:
 			case SymbolKind::TIME: {
-				detail::indent(std::cout, spaces); println(std::cout, colour, kind, " `", sv, "`", PV_RESET);
+				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
+					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
+			} break;
+
+			case SymbolKind::PATTERN: {  // Note patterns.
+				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
@@ -58,21 +63,20 @@ namespace pv {
 			case SymbolKind::STOP:
 			case SymbolKind::CLEAR:
 			case SymbolKind::INFO: {
-				detail::indent(std::cout, spaces); println(std::cout, colour, kind, PV_RESET);
+				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
+			case SymbolKind::MIDI:  // Expressions/Statements with no arguments.
 			case SymbolKind::SELECT:
 			case SymbolKind::ACTION: {
-				detail::indent(std::cout, spaces); println(std::cout, colour, kind, PV_RESET);
+				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
-			case SymbolKind::MIDI:  // Expressions/Statements with arguments.
-			case SymbolKind::LET:
-			case SymbolKind::INSTRUMENT:
+			case SymbolKind::LET:  // Expressions/Statements with arguments.
 			case SymbolKind::CONTROL: {
-				detail::indent(std::cout, spaces); println(std::cout, colour, kind, " `", sv, "`", PV_RESET);
+				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
 					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 

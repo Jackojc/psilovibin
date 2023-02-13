@@ -40,7 +40,49 @@ namespace chrono = std::chrono;
 
 constexpr std::string_view unit_suffix = "ms";
 
-int main(int, const char*[]) {
+enum: uint64_t {
+	OPT_HELP  = 1 << 0,
+	OPT_DEBUG = 1 << 1,
+};
+
+int main(int argc, const char* argv[]) {
+	// Argument parser.
+	uint64_t flags;
+
+	auto parser = conflict::parser {
+		conflict::option {{ 'h', "help", "show help" }, flags, OPT_HELP },
+		conflict::option {{ "debug", "show debug information" }, flags, OPT_DEBUG }
+	};
+
+	parser.apply_defaults();
+	auto status = parser.parse(argc - 1, argv + 1);
+
+	// Handle argument parsing errors.
+	switch (status.err) {
+		case conflict::error::invalid_option: {
+			println(std::cerr, PV_ERR "invalid option: " PV_RESET, status.what1);
+			return 1;
+		} break;
+
+		case conflict::error::invalid_argument: {
+			println(std::cerr, PV_ERR "invalid argument: " PV_RESET, status.what1, " for ", status.what2);
+			return 1;
+		} break;
+
+		case conflict::error::missing_argument: {
+			println(std::cerr, PV_ERR "missing argument: " PV_RESET, status.what1);
+			return 1;
+		} break;
+
+		case::conflict::error::ok: break;
+	}
+
+	if (flags & OPT_HELP) {
+		parser.print_help();
+		return 0;
+	}
+
+	// REPL
 	std::string buf;  // Keep outside of try/catch to keep buffer alive.
 	std::list<std::string> history;
 
@@ -69,8 +111,9 @@ int main(int, const char*[]) {
 			// Passes.
 			auto passes_t1 = timer::now();
 
-				PV_DBG_RUN(printer(ctx, tree));
-				// PV_DBG_RUN(dot(ctx, tree));
+				if (flags & OPT_DEBUG) {
+					printer(ctx, prog);
+				}
 
 			auto passes_t2 = timer::now();
 
