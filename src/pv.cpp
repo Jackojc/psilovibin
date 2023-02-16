@@ -3,7 +3,7 @@
 
 #include <type_traits>
 #include <algorithm>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 #include <array>
 #include <list>
@@ -25,19 +25,23 @@ extern "C" {
 
 // Debug passes
 #include <printer.hpp>
-#include <dot.hpp>
+// #include <dot.hpp>
 
 // Passes
-// ...
+#include <semantic.hpp>
+// #include <timeline.hpp>
 
+// Argument parsing
 #include <conflict/conflict.hpp>
 
+// Namespaces
 using namespace pv;
 
 using timer = std::chrono::steady_clock;
 using unit = std::chrono::milliseconds;
 namespace chrono = std::chrono;
 
+/// Constants
 constexpr std::string_view unit_suffix = "ms";
 
 enum: uint64_t {
@@ -100,7 +104,6 @@ int main(int argc, const char* argv[]) {
 				Symbol sym = take(lx, ctx.syms);  // Prepare the lexer.
 
 				std::vector<Symbol> prog = program(ctx, lx);
-				tree.insert(tree.end(), prog.begin(), prog.end());
 
 			auto compile_t2 = timer::now();
 
@@ -110,6 +113,23 @@ int main(int argc, const char* argv[]) {
 
 			// Passes.
 			auto passes_t1 = timer::now();
+
+				// if (flags & OPT_DEBUG) {
+				// 	printer(ctx, tree);
+				// }
+
+				for (Symbol s: prog)
+					println(std::cout, s);
+
+				semantic(ctx, prog);
+				// timeline(ctx, prog);
+
+				for (auto [first, second]: ctx.syms) {
+					println(std::cout, first, ":");
+
+					for (Symbol s: second)
+						println(std::cout, s);
+				}
 
 				if (flags & OPT_DEBUG) {
 					printer(ctx, prog);
@@ -122,6 +142,7 @@ int main(int argc, const char* argv[]) {
 			);
 
 			// Everything went okay.
+			tree = cat(tree, prog);
 			println(std::cout, "[" PV_OK "ok" PV_RESET "]");
 		}
 

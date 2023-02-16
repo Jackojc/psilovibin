@@ -23,11 +23,12 @@ namespace pv {
 	bool printer_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
-		View sv,
-		SymbolKind kind,
+		std::vector<Symbol>::iterator current,
 		std::vector<Symbol>::iterator& it,
 		size_t spaces = 0
 	) {
+		auto [sv, kind] = *current;
+
 		constexpr std::array colours {
 			PV_BLUE, PV_YELLOW,
 		};
@@ -68,14 +69,12 @@ namespace pv {
 			} break;
 
 			case SymbolKind::MIDI:  // Expressions/Statements with no arguments.
-			case SymbolKind::SELECT:
-			case SymbolKind::ACTION: {
+			case SymbolKind::SELECT: {
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
-			case SymbolKind::LET:  // Expressions/Statements with arguments.
-			case SymbolKind::CONTROL: {
+			case SymbolKind::LET: {  // Expressions/Statements with arguments.
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
 					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
 			} break;

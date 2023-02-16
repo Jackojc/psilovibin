@@ -26,8 +26,7 @@ top_level_command ::=
 action ::= ( <midi> | <identifier> ) <command>+
 
 let ::= 'let' ( <identifier> <literal> )+
-control ::= 'ctrl' ( <identifier> <literal> )+
 
-expr ::= <let> | <control> | <action> | <top_level_command>
+expr ::= <let> | <action> | <top_level_command>
 program ::= <expr> [ ',' <expr> ]* '\n'
 

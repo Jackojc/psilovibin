@@ -8,7 +8,7 @@
 	#include <algorithm>
 	#include <array>
 	#include <vector>
-	#include <unordered_set>
+	#include <unordered_map>
 	#include <string_view>
 	#include <iostream>
 */
@@ -33,10 +33,11 @@ namespace pv {
 		X(EXPECT_MIDI,        "expected a device") \
 		X(EXPECT_LET,         "expected let") \
 		X(EXPECT_IDENTIFIER,  "expected an identifier") \
-		X(EXPECT_CONTROL,     "expected control") \
 		X(EXPECT_MIDI_IDENT,  "expected device or identifier") \
 		X(EXPECT_PATTERN,     "expected a pattern") \
-		X(EXPECT_PATTERN_END, "expected end of pattern")
+		X(EXPECT_PATTERN_END, "expected end of pattern") \
+		\
+		X(UNKNOWN_SYMBOL, "unknown symbol")
 
 	#define X(a, b) a,
 		enum class ErrorKind: size_t { ERROR_KINDS };
@@ -87,7 +88,8 @@ namespace pv {
 
 // Symbol Table
 namespace pv {
-	using SymbolTable = std::unordered_set<std::string>;  // TODO: Use a prefix/radix tree
+	struct Symbol;
+	using SymbolTable = std::unordered_map<View, std::vector<Symbol>>;  // TODO: Use a prefix/radix tree
 }
 
 // Lexer
@@ -147,9 +149,7 @@ namespace pv {
 		X(PATTERN_END, "Pattern End") \
 		\
 		X(MIDI,    "Midi") \
-		X(LET,     "Let") \
-		X(CONTROL, "Control") \
-		X(ACTION,  "Action")
+		X(LET,     "Let")
 
 	#define X(a, b) a,
 		enum class SymbolKind: size_t { SYMBOL_KINDS };
@@ -262,7 +262,6 @@ namespace pv {
 
 			else if (sym.sv == "midi"_sv)  sym.kind = SymbolKind::MIDI;
 			else if (sym.sv == "let"_sv)   sym.kind = SymbolKind::LET;
-			else if (sym.sv == "ctrl"_sv)  sym.kind = SymbolKind::CONTROL;
 		}
 
 		else
@@ -330,7 +329,6 @@ namespace pv {
 
 	constexpr bool is_expr(Symbol x) {
 		return is_tl_command(x) or cmp_any(x.kind,
-			SymbolKind::CONTROL,
 			SymbolKind::LET,
 			SymbolKind::IDENTIFIER,
 			SymbolKind::MIDI);
@@ -368,7 +366,6 @@ namespace pv {
 	inline std::vector<Symbol> program(Context&, Lexer&);
 	inline std::vector<Symbol> expression(Context&, Lexer&);
 
-	inline std::vector<Symbol> control(Context&, Lexer&);
 	inline std::vector<Symbol> let(Context&, Lexer&);
 
 	inline std::vector<Symbol> action(Context&, Lexer&);
@@ -408,8 +405,7 @@ namespace pv {
 		PV_LOG(LogLevel::WRN);
 
 		switch (lx.peek.kind) {
-			case SymbolKind::LET:     return let(ctx, lx);  // Statements
-			case SymbolKind::CONTROL: return control(ctx, lx);
+			case SymbolKind::LET: return let(ctx, lx);  // Statements
 
 			case SymbolKind::GO:  // Top-level commands
 			case SymbolKind::STOP:
@@ -442,27 +438,6 @@ namespace pv {
 
 		report(lx.peek.sv, ErrorKind::UNREACHABLE);
 		return {};
-	}
-
-
-	inline std::vector<Symbol> control(Context& ctx, Lexer& lx) {
-		PV_LOG(LogLevel::WRN);
-
-		expect(lx, is(SymbolKind::CONTROL), ErrorKind::EXPECT_CONTROL);
-		Symbol ctrl = take(lx, ctx.syms);
-
-		std::vector<Symbol> tree;
-
-		do {
-			expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
-			Symbol ident = take(lx, ctx.syms);
-
-			tree.emplace_back(ident.sv, SymbolKind::CONTROL);
-			tree = cat(tree, literal(ctx, lx));
-			tree.emplace_back(lx.prev.sv, SymbolKind::END);
-		} while (lx.peek.kind == SymbolKind::IDENTIFIER);
-
-		return tree;
 	}
 
 	inline std::vector<Symbol> let(Context& ctx, Lexer& lx) {
@@ -635,11 +610,11 @@ namespace pv {
 		if (it == tree.end())
 			return it;
 
-		auto [sv, kind] = *it++;
-		bool matched = callback(ctx, tree, sv, kind, it, std::forward<Ts>(args)...);
+		std::vector<Symbol>::iterator current = it++;
+		bool matched = callback(ctx, tree, current, it, std::forward<Ts>(args)...);
 
 		if (not matched)
-			PV_LOG(LogLevel::WRN, "unhandled symbol: `", kind, "`");
+			PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
 
 		return it;
 	}
@@ -675,12 +650,25 @@ namespace pv {
 		Ts&&... args
 	) {
 		std::vector<Symbol>::iterator it = tree.begin();
-		std::vector<Symbol>::iterator before = it;
 
 		while (it != tree.end() and it->kind != SymbolKind::TERM)
 			it = visitor(fn, ctx, tree, it, std::forward<Ts>(args)...);
 
 		return it;
+	}
+
+	template <typename F, typename... Ts>
+	inline std::vector<Symbol> get_block(
+		F&& fn,
+		Context& ctx,
+		std::vector<Symbol>& tree,
+		std::vector<Symbol>::iterator it,
+		Ts&&... args
+	) {
+		std::vector<Symbol>::iterator before = it;
+		std::vector<Symbol>::iterator after = visit_block(fn, ctx, tree, it, std::forward<Ts>(args)...);
+
+		return { before, after - 1 };
 	}
 }
 

@@ -57,8 +57,7 @@ namespace pv {
 			case SymbolKind::TIME:
 
 			case SymbolKind::LET:  // Expressions/Statements.
-			case SymbolKind::CONTROL:
-			case SymbolKind::ACTION: {
+			case SymbolKind::CONTROL: {
 				detail::edge(std::cout, parent_id, self_id, kind, "|", sv);
 				it = visit_block(dot_impl, ctx, tree, it, id, self_id);
 			} break;
