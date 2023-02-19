@@ -13,57 +13,59 @@
 	canonicalising the AST.
 */
 namespace pv {
-	bool semantic_impl(
+	bool semantic_pattern_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
-		// View sv,
-		// SymbolKind kind,
 		std::vector<Symbol>::iterator current,
 		std::vector<Symbol>::iterator& it
 	) {
 		auto [sv, kind] = *current;
 
 		switch (kind) {
-			case SymbolKind::NONE: {
-
+			case SymbolKind::INTEGER: break;
+			case SymbolKind::PATTERN: {
+				it = visit_block(semantic_pattern_impl, ctx, tree, it);
 			} break;
 
+			default: {  // If we find anything else, it's an error.
+				report(sv, ErrorKind::EXPECT_INTEGER);
+			}
+		}
+
+		return true;
+	}
+
+	bool semantic_impl(
+		Context& ctx,
+		std::vector<Symbol>& tree,
+		std::vector<Symbol>::iterator current,
+		std::vector<Symbol>::iterator& it
+	) {
+		auto [sv, kind] = *current;
+
+		switch (kind) {
+			case SymbolKind::NONE:
 			case SymbolKind::STRING:  // Literals.
-			case SymbolKind::INTEGER: {
-
-			} break;
-
-			case SymbolKind::IDENTIFIER: {
-				// TODO: Just replace identifier with stored sub-tree. We can worry about
-				// whether or not it's correct later on. This should simplify things a lot
-				// because we wont require duplicated code in all block-like nodes to replace
-				// identifiers with their corresponding sub-tree.
-
-				if (auto sym_it = ctx.syms.find(sv); sym_it != ctx.syms.end()) {
-					auto [view, subtree] = *sym_it;
-
-					it = tree.erase(current);
-					it = tree.insert(it, subtree.begin(), subtree.end());
-				}
-
-				else {
-					report(sv, ErrorKind::UNKNOWN_SYMBOL);
-				}
-			} break;
+			case SymbolKind::INTEGER:
+			case SymbolKind::IDENTIFIER: break;
 
 			case SymbolKind::LEFT:  // Commands with arguments.
 			case SymbolKind::RIGHT:
 			case SymbolKind::VELOCITY:
 			case SymbolKind::BPM:
 			case SymbolKind::TIME: {
-				// TODO: Ensure correct types
-				// TODO: Resolve any symbols to values to canonicalise tree.
+				match(tree, it,
+					SymbolKind::INTEGER, ErrorKind::EXPECT_INTEGER);
+
 				it = visit_block(semantic_impl, ctx, tree, it);
 			} break;
 
 			case SymbolKind::PATTERN: {  // Note patterns.
 				// TODO: Ensure correct types
-				it = visit_block(semantic_impl, ctx, tree, it);
+				// Possible solution here is to implement a function that iterates over all nodes
+				// in a block. Perhaps more specifically all _leaf_ nodes in a block so we can ensure
+				// that all of them are integers.
+				it = visit_block(semantic_pattern_impl, ctx, tree, it);
 			} break;
 
 			case SymbolKind::GO:  // Commands with no arguments.
@@ -75,27 +77,26 @@ namespace pv {
 
 			case SymbolKind::MIDI: {  // Expressions/Statements with no arguments.
 				// TODO: Check if MIDI channel is valid.
+				// Maybe implement visitor for leaf nodes to check if channel here is valid
+				// in the range specified by the MIDI standard.
+				match(tree, it,
+					SymbolKind::STRING, ErrorKind::EXPECT_STRING,
+					SymbolKind::INTEGER, ErrorKind::EXPECT_INTEGER);
+
 				it = visit_block(semantic_impl, ctx, tree, it);
 			} break;
 
 			case SymbolKind::SELECT: {
-				// TODO: Verify that this block is a MIDI device and not an identifier or something else.
-				// Maybe we can implement a function to compare the node types of two trees to do easy
-				// matching.
+				match(tree, it,
+					SymbolKind::MIDI, ErrorKind::EXPECT_MIDI,
+					SymbolKind::STRING, ErrorKind::EXPECT_STRING,
+					SymbolKind::INTEGER, ErrorKind::EXPECT_INTEGER);
+
 				it = visit_block(semantic_impl, ctx, tree, it);
 			} break;
 
 			case SymbolKind::LET: {  // Expressions/Statements with arguments.
-				std::vector<Symbol>::iterator begin = it;
-					it = visit_block(semantic_impl, ctx, tree, it);
-				std::vector<Symbol>::iterator end = it - 1;
-
-				// Insert or re-assign symbol.
-				if (auto [sym_it, succ] = ctx.syms.try_emplace(sv, begin, end); not succ) {
-					PV_LOG(LogLevel::WRN, "reassign variable: ", sv);
-					auto& [view, sym] = *sym_it;
-					sym.assign(begin, end);
-				}
+				it = visit_block(semantic_impl, ctx, tree, it);
 			} break;
 
 			default: return false;

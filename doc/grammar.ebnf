@@ -4,7 +4,7 @@ number ::= ? [0-9]+ ? | ? 0x[0-9A-Fa-f]+ ?
 
 literal ::= <number> | <identifier> | <string> | <midi>
 midi ::= 'midi' <literal> <literal>
-pattern ::= '[' ( <literal_expr> | <pattern> )* ']'
+pattern ::= '[' ( <literal> | <pattern> )* ']'
 
 command ::=
 	'go' |

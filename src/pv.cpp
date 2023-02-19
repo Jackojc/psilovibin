@@ -28,7 +28,9 @@ extern "C" {
 // #include <dot.hpp>
 
 // Passes
+#include <canonicalise.hpp>
 #include <semantic.hpp>
+#include <fold.hpp>
 // #include <timeline.hpp>
 
 // Argument parsing
@@ -114,22 +116,9 @@ int main(int argc, const char* argv[]) {
 			// Passes.
 			auto passes_t1 = timer::now();
 
-				// if (flags & OPT_DEBUG) {
-				// 	printer(ctx, tree);
-				// }
-
-				for (Symbol s: prog)
-					println(std::cout, s);
-
+				canonicalise(ctx, prog);
 				semantic(ctx, prog);
 				// timeline(ctx, prog);
-
-				for (auto [first, second]: ctx.syms) {
-					println(std::cout, first, ":");
-
-					for (Symbol s: second)
-						println(std::cout, s);
-				}
 
 				if (flags & OPT_DEBUG) {
 					printer(ctx, prog);
@@ -143,6 +132,10 @@ int main(int argc, const char* argv[]) {
 
 			// Everything went okay.
 			tree = cat(tree, prog);
+
+			fold(ctx, tree);
+			printer(ctx, tree);
+
 			println(std::cout, "[" PV_OK "ok" PV_RESET "]");
 		}
 

@@ -670,6 +670,53 @@ namespace pv {
 
 		return { before, after - 1 };
 	}
+
+	namespace detail {
+		// TODO: Allow for passing a function that asserts some invariances about the
+		// node. For example we may want to check the kind of a node _and_ the value
+		// it contains.
+		template <typename X, typename Y>
+		inline std::vector<Symbol>::iterator match_impl(
+			std::vector<Symbol>& tree,
+			std::vector<Symbol>::iterator it,
+			X&& kind,
+			Y&& err
+		) {
+			// PV_LOG(LogLevel::INF, "match `", it->kind, "` == `", kind, "`");
+
+			bool is_matching = it != tree.end() and it->kind == kind;
+
+			if (not is_matching)
+				report(it->sv, err);
+
+			return ++it;
+		}
+	}
+
+	template <typename X, typename Y, typename... Ts>
+	inline std::vector<Symbol>::iterator match(
+		std::vector<Symbol>& tree,
+		std::vector<Symbol>::iterator it,
+		X&& kind,
+		Y&& err,
+		Ts&&... pairs
+	) {
+		static_assert(sizeof...(Ts) % 2 == 0);
+
+		it = detail::match_impl(tree, it, std::forward<X>(kind), std::forward<Y>(err));
+
+		if constexpr(sizeof...(Ts) >= 2)
+			it = match(tree, it, std::forward<Ts>(pairs)...);
+
+		return it;
+	}
+
+	// inline void fold(std::vector<Symbol>& tree, std::vector<Symbol>::iterator it) {
+	// 	// We have the current block so let's just visit it to find extent.
+	// 	std::vector<Symbol>::iterator begin = it;
+	// 		it = visit_block();
+	// 	std::vector<Symbol>::iterator end = it;
+	// }
 }
 
 #endif
