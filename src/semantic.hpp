@@ -23,7 +23,9 @@ namespace pv {
 
 		switch (kind) {
 			case SymbolKind::INTEGER: break;
-			case SymbolKind::PATTERN: {
+
+			case SymbolKind::SEQUENCE:
+			case SymbolKind::PARALLEL: {
 				it = visit_block(semantic_pattern_impl, ctx, tree, it);
 			} break;
 
@@ -53,14 +55,17 @@ namespace pv {
 			case SymbolKind::RIGHT:
 			case SymbolKind::VELOCITY:
 			case SymbolKind::BPM:
-			case SymbolKind::TIME: {
+			case SymbolKind::TIME:
+			case SymbolKind::UP:
+			case SymbolKind::DOWN: {
 				match(tree, it,
 					SymbolKind::INTEGER, ErrorKind::EXPECT_INTEGER);
 
 				it = visit_block(semantic_impl, ctx, tree, it);
 			} break;
 
-			case SymbolKind::PATTERN: {  // Note patterns.
+			case SymbolKind::SEQUENCE:
+			case SymbolKind::PARALLEL: {  // Note patterns.
 				// TODO: Ensure correct types
 				// Possible solution here is to implement a function that iterates over all nodes
 				// in a block. Perhaps more specifically all _leaf_ nodes in a block so we can ensure

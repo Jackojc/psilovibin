@@ -32,7 +32,7 @@ namespace pv {
 		};
 	}
 
-	bool fold_impl(
+	bool fold_command_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
 		std::vector<Symbol>::iterator current,
@@ -42,37 +42,12 @@ namespace pv {
 		auto [sv, kind] = *current;
 
 		switch (kind) {
-			case SymbolKind::NONE:
-			case SymbolKind::STRING:  // Literals.
-			case SymbolKind::INTEGER:
-			case SymbolKind::IDENTIFIER: break;
-
-			case SymbolKind::LEFT:  // Commands with arguments.
-			case SymbolKind::RIGHT:
-			case SymbolKind::VELOCITY:
-			case SymbolKind::BPM:
-			case SymbolKind::TIME: {
-				it = visit_block(fold_impl, ctx, tree, it, op_stack);
-			} break;
-
-			case SymbolKind::PATTERN: {  // Note patterns.
-				it = visit_block(semantic_pattern_impl, ctx, tree, it);
-			} break;
-
 			case SymbolKind::GO:  // Commands with no arguments.
 			case SymbolKind::STOP:
 			case SymbolKind::CLEAR:
 			case SymbolKind::INFO: {
-				it = visit_block(fold_impl, ctx, tree, it, op_stack);
-			} break;
-
-			case SymbolKind::MIDI: {  // Expressions/Statements with no arguments.
-				it = visit_block(fold_impl, ctx, tree, it, op_stack);
-			} break;
-
-			case SymbolKind::SELECT: {
 				std::vector<Symbol>::iterator begin = it;
-					it = visit_block(fold_impl, ctx, tree, it, op_stack);
+					it = visit_block(fold_command_impl, ctx, tree, it, op_stack);
 				std::vector<Symbol>::iterator end = it;
 
 				std::vector<detail::OpStackEntry>::reverse_iterator stack_it = std::find_if(op_stack.rbegin(), op_stack.rend(),
@@ -83,15 +58,81 @@ namespace pv {
 				if (stack_it != op_stack.rend()) {
 					auto [op_kind, op_begin, op_end] = *stack_it;
 
-					if (std::equal(op_begin, op_end, begin, end))
-						PV_LOG(LogLevel::ERR, "candidate");
+					if (std::equal(op_begin, op_end, begin, end)) {
+						// Move current block to the end.
+						std::vector<Symbol>::iterator new_end = std::rotate(current, end, tree.end());
+
+						// Resize to remove last elements without invalidating iterators in op_entry.
+						tree.resize(std::distance(tree.begin(), new_end));
+
+						// We want to move the iterator back to the beginning of this block because we
+						// moved the element underneath to the end and erased it.
+						it = current;
+
+						break;  // Don't add to op_stack since we've removed it.
+					}
 				}
 
 				op_stack.emplace_back(kind, begin, end);
 			} break;
 
-			case SymbolKind::LET: {  // Expressions/Statements with arguments.
-				it = visit_block(fold_impl, ctx, tree, it, op_stack);
+			case SymbolKind::SELECT: {
+				it = visit_block(fold_command_impl, ctx, tree, it, op_stack);
+			} break;
+
+			default: return false;
+		}
+
+		return true;
+	}
+
+	bool fold_select_impl(
+		Context& ctx,
+		std::vector<Symbol>& tree,
+		std::vector<Symbol>::iterator current,
+		std::vector<Symbol>::iterator& it,
+		std::vector<detail::OpStackEntry>& op_stack
+	) {
+		auto [sv, kind] = *current;
+
+		switch (kind) {
+			case SymbolKind::GO:  // Commands with no arguments.
+			case SymbolKind::STOP:
+			case SymbolKind::CLEAR:
+			case SymbolKind::INFO:
+
+			case SymbolKind::SELECT: {
+				// op_stack.erase(std::remove_if(op_stack.begin(), op_stack.end(),
+				// 	[] (detail::OpStackEntry entry) { return entry.kind != SymbolKind::SELECT; }), op_stack.end());
+
+				std::vector<Symbol>::iterator begin = it;
+					it = visit_block(fold_select_impl, ctx, tree, it, op_stack);
+				std::vector<Symbol>::iterator end = it;
+
+				std::vector<detail::OpStackEntry>::reverse_iterator stack_it = std::find_if(op_stack.rbegin(), op_stack.rend(),
+					[&] (detail::OpStackEntry entry) {
+						return entry.kind == kind;
+					});
+
+				if (stack_it != op_stack.rend()) {
+					auto [op_kind, op_begin, op_end] = *stack_it;
+
+					if (std::equal(op_begin, op_end, begin, end)) {
+						// Move current block to the end.
+						std::vector<Symbol>::iterator new_end = std::rotate(current, end, tree.rbegin().base());
+
+						// Resize to remove last elements without invalidating iterators in op_entry.
+						tree.resize(std::distance(tree.begin(), new_end));
+
+						// We want to move the iterator back to the beginning of this block because we
+						// moved the element underneath to the end and erased it.
+						it = current;
+
+						break;  // Don't add to op_stack since we've removed it.
+					}
+				}
+
+				op_stack.emplace_back(kind, begin, end);
 			} break;
 
 			default: return false;
@@ -104,7 +145,11 @@ namespace pv {
 		PV_LOG(LogLevel::OK);
 
 		std::vector<detail::OpStackEntry> op_stack;
-		return pass(fold_impl, ctx, tree, op_stack);
+
+		pass(fold_select_impl, ctx, tree, op_stack); op_stack.clear();
+		// pass(fold_command_impl, ctx, tree, op_stack); op_stack.clear();
+
+		return tree.end();  // TODO: Return iterator from pass here.
 	}
 }
 

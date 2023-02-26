@@ -46,16 +46,19 @@ namespace pv {
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
 			} break;
 
-			case SymbolKind::LEFT:  // Commands with arguments.
+			case SymbolKind::LEFT:  // Commands with integer arguments.
 			case SymbolKind::RIGHT:
 			case SymbolKind::VELOCITY:
 			case SymbolKind::BPM:
-			case SymbolKind::TIME: {
-				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
+			case SymbolKind::TIME:
+			case SymbolKind::UP:
+			case SymbolKind::DOWN: {
+				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
-			case SymbolKind::PATTERN: {  // Note patterns.
+			case SymbolKind::SEQUENCE:  // Note patterns.
+			case SymbolKind::PARALLEL: {
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 					it = visit_block(printer_impl, ctx, tree, it, spaces + 1);
 			} break;

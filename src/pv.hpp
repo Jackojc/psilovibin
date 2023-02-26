@@ -144,9 +144,13 @@ namespace pv {
 		X(TIME,     "Time") \
 		X(CLEAR,    "Clear") \
 		X(INFO,     "Info") \
+		X(UP,       "Up") \
+		X(DOWN,     "Down") \
 		\
-		X(PATTERN,     "Pattern") \
-		X(PATTERN_END, "Pattern End") \
+		X(SEQUENCE,     "Sequence") \
+		X(SEQUENCE_END, "Sequence End") \
+		X(PARALLEL,     "Parallel") \
+		X(PARALLEL_END, "Parallel End") \
 		\
 		X(MIDI,    "Midi") \
 		X(LET,     "Let")
@@ -177,6 +181,9 @@ namespace pv {
 	struct Symbol {
 		View sv;
 		SymbolKind kind;
+
+		constexpr Symbol():
+			sv(""_sv), kind(SymbolKind::NONE) {}
 
 		constexpr Symbol(View sv_, SymbolKind kind_):
 			sv(sv_), kind(kind_) {}
@@ -216,8 +223,11 @@ namespace pv {
 
 		else if (sym.sv == ","_sv) { sym.kind = SymbolKind::COMMA; lx.sv = next(lx.sv); }
 
-		else if (sym.sv == "["_sv) { sym.kind = SymbolKind::PATTERN; lx.sv = next(lx.sv); }
-		else if (sym.sv == "]"_sv) { sym.kind = SymbolKind::PATTERN_END; lx.sv = next(lx.sv); }
+		else if (sym.sv == "["_sv) { sym.kind = SymbolKind::SEQUENCE; lx.sv = next(lx.sv); }
+		else if (sym.sv == "]"_sv) { sym.kind = SymbolKind::SEQUENCE_END; lx.sv = next(lx.sv); }
+
+		else if (sym.sv == "("_sv) { sym.kind = SymbolKind::PARALLEL; lx.sv = next(lx.sv); }
+		else if (sym.sv == ")"_sv) { sym.kind = SymbolKind::PARALLEL_END; lx.sv = next(lx.sv); }
 
 		else if (sym.sv == "\""_sv) {
 			sym.kind = SymbolKind::STRING;
@@ -259,6 +269,8 @@ namespace pv {
 			else if (sym.sv == "time"_sv)     sym.kind = SymbolKind::TIME;
 			else if (sym.sv == "clear"_sv)    sym.kind = SymbolKind::CLEAR;
 			else if (sym.sv == "info"_sv)     sym.kind = SymbolKind::INFO;
+			else if (sym.sv == "up"_sv)       sym.kind = SymbolKind::UP;
+			else if (sym.sv == "down"_sv)     sym.kind = SymbolKind::DOWN;
 
 			else if (sym.sv == "midi"_sv)  sym.kind = SymbolKind::MIDI;
 			else if (sym.sv == "let"_sv)   sym.kind = SymbolKind::LET;
@@ -279,8 +291,9 @@ namespace pv {
 		return out;
 	}
 
-	constexpr decltype(auto) is(SymbolKind kind) {
-		return [=] (Symbol other) { return kind == other.kind; };
+	template <typename... Ts>
+	constexpr decltype(auto) is(Ts&&... kinds) {
+		return [=] (Symbol other) { return ((other.kind == kinds) or ...); };
 	}
 
 	template <typename F> constexpr void expect(Lexer& lx, F&& fn, ErrorKind x) {
@@ -316,7 +329,10 @@ namespace pv {
 			SymbolKind::TIME,
 			SymbolKind::CLEAR,
 			SymbolKind::INFO,
-			SymbolKind::PATTERN);
+			SymbolKind::UP,
+			SymbolKind::DOWN,
+			SymbolKind::SEQUENCE,
+			SymbolKind::PARALLEL);
 	}
 
 	constexpr bool is_tl_command(Symbol x) {
@@ -332,11 +348,6 @@ namespace pv {
 			SymbolKind::LET,
 			SymbolKind::IDENTIFIER,
 			SymbolKind::MIDI);
-	}
-
-	constexpr bool is_pattern(Symbol x) {
-		return is_literal(x) or cmp_any(x.kind,
-			SymbolKind::PATTERN);
 	}
 
 	// Utilities
@@ -500,7 +511,9 @@ namespace pv {
 			case SymbolKind::RIGHT:
 			case SymbolKind::VELOCITY:
 			case SymbolKind::BPM:
-			case SymbolKind::TIME: {
+			case SymbolKind::TIME:
+			case SymbolKind::UP:
+			case SymbolKind::DOWN: {
 				Symbol command = take(lx, ctx.syms);
 
 				tree.push_back(command);
@@ -518,7 +531,8 @@ namespace pv {
 				tree.emplace_back(lx.prev.sv, SymbolKind::END);
 			} break;
 
-			case SymbolKind::PATTERN: {
+			case SymbolKind::SEQUENCE:
+			case SymbolKind::PARALLEL: {
 				tree = cat(tree, pattern(ctx, lx));
 			} break;
 
@@ -533,13 +547,13 @@ namespace pv {
 
 		std::vector<Symbol> tree;
 
-		expect(lx, is(SymbolKind::PATTERN), ErrorKind::EXPECT_PATTERN);
-		Symbol lbracket = take(lx, ctx.syms);
+		expect(lx, is(SymbolKind::SEQUENCE, SymbolKind::PARALLEL), ErrorKind::EXPECT_PATTERN);
+		Symbol open = take(lx, ctx.syms);
 
-		tree.push_back(lbracket);
+		tree.push_back(open);
 
-		while (is_pattern(lx.peek)) {
-			if (lx.peek.kind == SymbolKind::PATTERN)
+		while (cmp_any(lx.peek.kind, SymbolKind::SEQUENCE, SymbolKind::PARALLEL)) {
+			if (cmp_any(lx.peek.kind, SymbolKind::SEQUENCE, SymbolKind::PARALLEL))
 				tree = cat(tree, pattern(ctx, lx));
 
 			else if (is_literal(lx.peek))
@@ -549,10 +563,10 @@ namespace pv {
 				report(lx.peek.sv, ErrorKind::EXPECT_PATTERN);
 		}
 
-		expect(lx, is(SymbolKind::PATTERN_END), ErrorKind::EXPECT_PATTERN_END);
-		Symbol rbracket = take(lx, ctx.syms);
+		expect(lx, is(SymbolKind::SEQUENCE_END, SymbolKind::PARALLEL_END), ErrorKind::EXPECT_PATTERN_END);
+		Symbol close = take(lx, ctx.syms);
 
-		tree.emplace_back(rbracket.sv, SymbolKind::END);
+		tree.emplace_back(close.sv, SymbolKind::END);
 
 		return tree;
 	}
@@ -682,8 +696,6 @@ namespace pv {
 			X&& kind,
 			Y&& err
 		) {
-			// PV_LOG(LogLevel::INF, "match `", it->kind, "` == `", kind, "`");
-
 			bool is_matching = it != tree.end() and it->kind == kind;
 
 			if (not is_matching)
@@ -710,13 +722,6 @@ namespace pv {
 
 		return it;
 	}
-
-	// inline void fold(std::vector<Symbol>& tree, std::vector<Symbol>::iterator it) {
-	// 	// We have the current block so let's just visit it to find extent.
-	// 	std::vector<Symbol>::iterator begin = it;
-	// 		it = visit_block();
-	// 	std::vector<Symbol>::iterator end = it;
-	// }
 }
 
 #endif

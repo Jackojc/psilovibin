@@ -30,8 +30,8 @@ extern "C" {
 // Passes
 #include <canonicalise.hpp>
 #include <semantic.hpp>
-#include <fold.hpp>
-// #include <timeline.hpp>
+// #include <fold.hpp>
+#include <timeline.hpp>
 
 // Argument parsing
 #include <conflict/conflict.hpp>
@@ -56,8 +56,7 @@ int main(int argc, const char* argv[]) {
 	uint64_t flags;
 
 	auto parser = conflict::parser {
-		conflict::option {{ 'h', "help", "show help" }, flags, OPT_HELP },
-		conflict::option {{ "debug", "show debug information" }, flags, OPT_DEBUG }
+		conflict::option {{ 'h', "help", "show help" }, flags, OPT_HELP }
 	};
 
 	parser.apply_defaults();
@@ -118,11 +117,7 @@ int main(int argc, const char* argv[]) {
 
 				canonicalise(ctx, prog);
 				semantic(ctx, prog);
-				// timeline(ctx, prog);
-
-				if (flags & OPT_DEBUG) {
-					printer(ctx, prog);
-				}
+				timeline(ctx, prog);
 
 			auto passes_t2 = timer::now();
 
@@ -133,9 +128,7 @@ int main(int argc, const char* argv[]) {
 			// Everything went okay.
 			tree = cat(tree, prog);
 
-			fold(ctx, tree);
 			printer(ctx, tree);
-
 			println(std::cout, "[" PV_OK "ok" PV_RESET "]");
 		}
 

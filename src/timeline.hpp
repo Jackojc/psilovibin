@@ -17,10 +17,11 @@ namespace pv {
 	bool timelime_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
-		View sv,
-		SymbolKind kind,
+		std::vector<Symbol>::iterator current,
 		std::vector<Symbol>::iterator& it
 	) {
+		auto [sv, kind] = *current;
+
 		switch (kind) {
 			case SymbolKind::NONE: {
 				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
@@ -30,6 +31,7 @@ namespace pv {
 			case SymbolKind::INTEGER:
 			case SymbolKind::IDENTIFIER: {
 				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
+				println(std::cout, sv);
 			} break;
 
 			case SymbolKind::LEFT:  // Commands with arguments.
@@ -41,7 +43,8 @@ namespace pv {
 					it = visit_block(timelime_impl, ctx, tree, it);
 			} break;
 
-			case SymbolKind::PATTERN: {  // Note patterns.
+			case SymbolKind::SEQUENCE:
+			case SymbolKind::PARALLEL: {  // Note patterns.
 				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 				it = visit_block(timelime_impl, ctx, tree, it);
 			} break;
@@ -60,8 +63,7 @@ namespace pv {
 				it = visit_block(timelime_impl, ctx, tree, it);
 			} break;
 
-			case SymbolKind::LET:  // Expressions/Statements with arguments.
-			case SymbolKind::CONTROL: {
+			case SymbolKind::LET: {  // Expressions/Statements with arguments.
 				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
 				it = visit_block(timelime_impl, ctx, tree, it);
 			} break;

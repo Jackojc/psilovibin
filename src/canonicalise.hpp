@@ -54,11 +54,14 @@ namespace pv {
 			case SymbolKind::RIGHT:
 			case SymbolKind::VELOCITY:
 			case SymbolKind::BPM:
-			case SymbolKind::TIME: {
+			case SymbolKind::TIME:
+			case SymbolKind::UP:
+			case SymbolKind::DOWN: {
 				it = visit_block(canonicalise_impl, ctx, tree, it);
 			} break;
 
-			case SymbolKind::PATTERN: {  // Note patterns.
+			case SymbolKind::SEQUENCE:  // Note patterns.
+			case SymbolKind::PARALLEL: {
 				it = visit_block(canonicalise_impl, ctx, tree, it);
 			} break;
 
