@@ -10,62 +10,78 @@
 */
 
 /*
-	This pass walks the AST and generates a timeline of events that will then be used
-	to generate the MIDI messages we want to send to various devices.
+	This pass walks the AST and performs stack based code generation. It uses
+	the same data structures and types as the AST but it's completely flat.
 */
 namespace pv {
-	bool timelime_impl(
+	bool pattern_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
 		std::vector<Symbol>::iterator current,
-		std::vector<Symbol>::iterator& it
+		std::vector<Symbol>::iterator& it,
+		std::vector<Symbol> stack
 	) {
 		auto [sv, kind] = *current;
 
 		switch (kind) {
-			case SymbolKind::NONE: {
-				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
+			case SymbolKind::INTEGER: {
+				println(std::cout, SymbolKind::NOTE, " ", sv);
 			} break;
 
+			case SymbolKind::SEQUENCE: {
+				println(std::cout, SymbolKind::DESCEND);
+				it = visit_block(pattern_impl, ctx, tree, it, stack);
+				println(std::cout, SymbolKind::ASCEND);
+				println(std::cout, kind);
+			} break;
+
+			case SymbolKind::PARALLEL: {
+				it = visit_block(pattern_impl, ctx, tree, it, stack);
+				println(std::cout, kind);
+			} break;
+
+			default: return false;
+		}
+
+		return true;
+	}
+
+	bool timeline_impl(
+		Context& ctx,
+		std::vector<Symbol>& tree,
+		std::vector<Symbol>::iterator current,
+		std::vector<Symbol>::iterator& it,
+		std::vector<Symbol> stack
+	) {
+		auto [sv, kind] = *current;
+
+		switch (kind) {
 			case SymbolKind::STRING:  // Literals.
 			case SymbolKind::INTEGER:
 			case SymbolKind::IDENTIFIER: {
-				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
-				println(std::cout, sv);
+				println(std::cout, kind, " ", sv);
+			} break;
+
+			case SymbolKind::SEQUENCE:
+			case SymbolKind::PARALLEL: {  // Note patterns.
+				it = visit_block(pattern_impl, ctx, tree, it, stack);
 			} break;
 
 			case SymbolKind::LEFT:  // Commands with arguments.
 			case SymbolKind::RIGHT:
 			case SymbolKind::VELOCITY:
 			case SymbolKind::BPM:
-			case SymbolKind::TIME: {
-				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
-					it = visit_block(timelime_impl, ctx, tree, it);
-			} break;
-
-			case SymbolKind::SEQUENCE:
-			case SymbolKind::PARALLEL: {  // Note patterns.
-				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
-				it = visit_block(timelime_impl, ctx, tree, it);
-			} break;
+			case SymbolKind::TIME:
 
 			case SymbolKind::GO:  // Commands with no arguments.
 			case SymbolKind::STOP:
 			case SymbolKind::CLEAR:
-			case SymbolKind::INFO: {
-				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
-				it = visit_block(timelime_impl, ctx, tree, it);
-			} break;
+			case SymbolKind::INFO:
 
 			case SymbolKind::MIDI:  // Expressions/Statements with no arguments.
 			case SymbolKind::SELECT: {
-				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
-				it = visit_block(timelime_impl, ctx, tree, it);
-			} break;
-
-			case SymbolKind::LET: {  // Expressions/Statements with arguments.
-				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
-				it = visit_block(timelime_impl, ctx, tree, it);
+				it = visit_block(timeline_impl, ctx, tree, it, stack);
+				println(std::cout, kind);
 			} break;
 
 			default: return false;
@@ -76,7 +92,9 @@ namespace pv {
 
 	inline std::vector<Symbol>::iterator timeline(Context& ctx, std::vector<Symbol>& tree) {
 		PV_LOG(LogLevel::OK);
-		return pass(timelime_impl, ctx, tree);
+
+		std::vector<Symbol> stack;
+		return pass(timeline_impl, ctx, tree, stack);
 	}
 }
 

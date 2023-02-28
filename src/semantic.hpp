@@ -73,6 +73,8 @@ namespace pv {
 				it = visit_block(semantic_pattern_impl, ctx, tree, it);
 			} break;
 
+			// TODO: Make sure sequence has a BPM when we use GO. If we don't have a BPM at this point
+			// how can we generate notes?
 			case SymbolKind::GO:  // Commands with no arguments.
 			case SymbolKind::STOP:
 			case SymbolKind::CLEAR:

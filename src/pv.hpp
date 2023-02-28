@@ -127,8 +127,12 @@ namespace pv {
 		X(NONE, "None") \
 		X(TERM, "EOF") \
 		\
-		X(SELECT, "Select") \
-		X(END,    "End") \
+		X(SELECT,  "Select") \
+		X(END,     "End") \
+		X(NOTE,    "Note") \
+		X(NEST,    "Nest") \
+		X(DESCEND, "Descend") \
+		X(ASCEND,  "Ascend") \
 		\
 		X(IDENTIFIER, "Identifier") \
 		X(INTEGER,    "Integer") \
@@ -552,7 +556,7 @@ namespace pv {
 
 		tree.push_back(open);
 
-		while (cmp_any(lx.peek.kind, SymbolKind::SEQUENCE, SymbolKind::PARALLEL)) {
+		while (cmp_any(lx.peek.kind, SymbolKind::SEQUENCE, SymbolKind::PARALLEL) or is_literal(lx.peek)) {
 			if (cmp_any(lx.peek.kind, SymbolKind::SEQUENCE, SymbolKind::PARALLEL))
 				tree = cat(tree, pattern(ctx, lx));
 
