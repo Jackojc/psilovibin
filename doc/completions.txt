@@ -1,0 +1,13 @@
+go
+stop
+clear
+left
+right
+velocity
+bpm
+time
+up
+down
+info
+midi
+let
