@@ -14,24 +14,25 @@
 	the same data structures and types as the AST but it's completely flat.
 */
 namespace pv {
-	bool pattern_impl(
+	std::vector<Symbol>::iterator pattern_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
 		std::vector<Symbol>::iterator current,
-		std::vector<Symbol>::iterator& it,
+		std::vector<Symbol>::iterator it,
 		std::vector<Symbol> stack
 	) {
 		auto [sv, kind] = *current;
 
 		switch (kind) {
 			case SymbolKind::INTEGER: {
-				println(std::cout, SymbolKind::NOTE, " ", sv);
+				// println(std::cout, SymbolKind::NOTE, " ", sv);
+				stack.emplace_back(*current);
 			} break;
 
 			case SymbolKind::SEQUENCE: {
-				println(std::cout, SymbolKind::DESCEND);
+				// println(std::cout, SymbolKind::DESCEND);
 				it = visit_block(pattern_impl, ctx, tree, it, stack);
-				println(std::cout, SymbolKind::ASCEND);
+				// println(std::cout, SymbolKind::ASCEND);
 				println(std::cout, kind);
 			} break;
 
@@ -40,17 +41,19 @@ namespace pv {
 				println(std::cout, kind);
 			} break;
 
-			default: return false;
+			default: {
+				PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
+			} break;
 		}
 
-		return true;
+		return it;
 	}
 
-	bool timeline_impl(
+	std::vector<Symbol>::iterator timeline_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
 		std::vector<Symbol>::iterator current,
-		std::vector<Symbol>::iterator& it,
+		std::vector<Symbol>::iterator it,
 		std::vector<Symbol> stack
 	) {
 		auto [sv, kind] = *current;
@@ -59,7 +62,7 @@ namespace pv {
 			case SymbolKind::STRING:  // Literals.
 			case SymbolKind::INTEGER:
 			case SymbolKind::IDENTIFIER: {
-				println(std::cout, kind, " ", sv);
+				stack.emplace_back(*current);
 			} break;
 
 			case SymbolKind::SEQUENCE:
@@ -81,13 +84,16 @@ namespace pv {
 			case SymbolKind::MIDI:  // Expressions/Statements with no arguments.
 			case SymbolKind::SELECT: {
 				it = visit_block(timeline_impl, ctx, tree, it, stack);
-				println(std::cout, kind);
+				// println(std::cout, kind);
+				// println(std::cout, stack.back());
 			} break;
 
-			default: return false;
+			default: {
+				PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
+			} break;
 		}
 
-		return true;
+		return it;
 	}
 
 	inline std::vector<Symbol>::iterator timeline(Context& ctx, std::vector<Symbol>& tree) {

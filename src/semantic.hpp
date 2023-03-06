@@ -13,11 +13,11 @@
 	canonicalising the AST.
 */
 namespace pv {
-	bool semantic_pattern_impl(
+	std::vector<Symbol>::iterator semantic_pattern_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
 		std::vector<Symbol>::iterator current,
-		std::vector<Symbol>::iterator& it
+		std::vector<Symbol>::iterator it
 	) {
 		auto [sv, kind] = *current;
 
@@ -34,14 +34,14 @@ namespace pv {
 			}
 		}
 
-		return true;
+		return it;
 	}
 
-	bool semantic_impl(
+	std::vector<Symbol>::iterator semantic_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
 		std::vector<Symbol>::iterator current,
-		std::vector<Symbol>::iterator& it
+		std::vector<Symbol>::iterator it
 	) {
 		auto [sv, kind] = *current;
 
@@ -106,10 +106,12 @@ namespace pv {
 				it = visit_block(semantic_impl, ctx, tree, it);
 			} break;
 
-			default: return false;
+			default: {
+				PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
+			} break;
 		}
 
-		return true;
+		return it;
 	}
 
 	inline std::vector<Symbol>::iterator semantic(Context& ctx, std::vector<Symbol>& tree) {

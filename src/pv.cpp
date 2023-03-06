@@ -28,10 +28,10 @@ extern "C" {
 // #include <dot.hpp>
 
 // Passes
-#include <canonicalise.hpp>
-#include <semantic.hpp>
+// #include <canonicalise.hpp>
+// #include <semantic.hpp>
 // #include <fold.hpp>
-#include <timeline.hpp>
+// #include <timeline.hpp>
 
 // Argument parsing
 #include <conflict/conflict.hpp>
@@ -115,9 +115,15 @@ int main(int argc, const char* argv[]) {
 			// Passes.
 			auto passes_t1 = timer::now();
 
-				canonicalise(ctx, prog);
-				semantic(ctx, prog);
-				timeline(ctx, prog);
+				// canonicalise(ctx, prog);
+				// semantic(ctx, prog);
+				// timeline(ctx, prog);
+
+				tree = cat(tree, prog);
+
+				Tree new_tree = printer(ctx, tree);
+				printer(ctx, new_tree);
+				PV_LOG(LogLevel::ERR, tree == new_tree);
 
 			auto passes_t2 = timer::now();
 
@@ -126,9 +132,6 @@ int main(int argc, const char* argv[]) {
 			);
 
 			// Everything went okay.
-			tree = cat(tree, prog);
-
-			printer(ctx, tree);
 			println(std::cout, "[" PV_OK "ok" PV_RESET "]");
 		}
 

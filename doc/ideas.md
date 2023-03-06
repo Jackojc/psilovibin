@@ -31,3 +31,17 @@ by two implicitly but this isn't very flexible.
 
 ### Semantic Ideas
 - Mandate that a BPM is set for all channels during semantic analysis
+
+### Architecture
+- Make passes non-mutating and instead produce a new tree
+
+### Scheduler
+Use a back-buffer like approach where we flip between two trees. One tree
+will be walked by the sequencer on another thread where it generates MIDI.
+The other tree will be written to by the compiler as the user enters commands.
+When the user enters a command, we compile and then swap the trees with the
+sequencer picking up where it left off index-wise (so we need to be careful
+with references being invalidated).
+
+### Passes
+- MIDI hex visualiser

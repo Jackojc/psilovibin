@@ -14,11 +14,11 @@
 	its structure.
 */
 namespace pv {
-	bool canonicalise_impl(
+	std::vector<Symbol>::iterator canonicalise_impl(
 		Context& ctx,
 		std::vector<Symbol>& tree,
 		std::vector<Symbol>::iterator current,
-		std::vector<Symbol>::iterator& it
+		std::vector<Symbol>::iterator it
 	) {
 		auto [sv, kind] = *current;
 
@@ -33,11 +33,6 @@ namespace pv {
 			} break;
 
 			case SymbolKind::IDENTIFIER: {
-				// TODO: Just replace identifier with stored sub-tree. We can worry about
-				// whether or not it's correct in the semantic analysis pass. This should
-				// simplify things a lot // because we wont require duplicated code in all block
-				// -like nodes to replace identifiers with their corresponding sub-tree.
-
 				if (auto sym_it = ctx.syms.find(sv); sym_it != ctx.syms.end()) {
 					auto [view, subtree] = *sym_it;
 
@@ -72,29 +67,41 @@ namespace pv {
 				it = visit_block(canonicalise_impl, ctx, tree, it);
 			} break;
 
-			case SymbolKind::MIDI:   // Expressions/Statements with no arguments.
-			case SymbolKind::SELECT: {
+			case SymbolKind::MIDI: {  // Expressions/Statements with no arguments.
 				it = visit_block(canonicalise_impl, ctx, tree, it);
 			} break;
 
-			case SymbolKind::LET: {  // Expressions/Statements with arguments.
-				std::vector<Symbol>::iterator begin = it;
-					it = visit_block(canonicalise_impl, ctx, tree, it);
-				std::vector<Symbol>::iterator end = it;
+			case SymbolKind::SELECT: {
+				// TODO: We can remove either the MIDI or SELECT block here now since we have
+				// canonicalised the tree and we don't expect to find an identifier inside a SELECT block.
 
-				// Insert or re-assign symbol.
-				if (auto [sym_it, succ] = ctx.syms.try_emplace(sv, begin, end - 1); not succ) {
-					auto& [view, sym] = *sym_it;
-					sym.assign(begin, end - 1);
-				}
+				auto [before, after] = visit_block_extent_inclusive(canonicalise_impl, ctx, tree, it);
 
-				it = tree.erase(current, end);  // Erase this assignment from the tree since we have stored it.
+				PV_LOG(LogLevel::ERR, before->kind);
+				PV_LOG(LogLevel::ERR, after->kind);
+
+				it = ++after;
 			} break;
 
-			default: return false;
+			case SymbolKind::LET: {  // Expressions/Statements with arguments.
+				auto [before, after] = visit_block_extent_inclusive(canonicalise_impl, ctx, tree, it);
+
+				// Insert or re-assign symbol.
+				if (auto [sym_it, succ] = ctx.syms.try_emplace(sv, before, after); not succ) {
+					auto& [view, sym] = *sym_it;
+					sym.assign(before, after);
+				}
+
+				it = ++after;
+				it = tree.erase(current, after);  // Erase this assignment from the tree since we have stored it.
+			} break;
+
+			default: {
+				PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
+			} break;
 		}
 
-		return true;
+		return it;
 	}
 
 	inline std::vector<Symbol>::iterator canonicalise(Context& ctx, std::vector<Symbol>& tree) {

@@ -89,7 +89,8 @@ namespace pv {
 // Symbol Table
 namespace pv {
 	struct Symbol;
-	using SymbolTable = std::unordered_map<View, std::vector<Symbol>>;  // TODO: Use a prefix/radix tree
+	using Tree = std::vector<Symbol>;
+	using SymbolTable = std::unordered_map<View, Tree>;  // TODO: Use a prefix/radix tree
 }
 
 // Lexer
@@ -356,11 +357,11 @@ namespace pv {
 
 	// Utilities
 	template <typename F>
-	inline std::vector<Symbol> block(View sv, SymbolKind kind, F&& fn) {
-		std::vector<Symbol> tree;
+	inline Tree block(View sv, SymbolKind kind, F&& fn) {
+		Tree tree;
 		tree.emplace_back(sv, kind);
 
-		std::vector<Symbol> inner_tree = fn();
+		Tree inner_tree = fn();
 		tree.insert(tree.end(), inner_tree.begin(), inner_tree.end());
 
 		tree.emplace_back(sv, SymbolKind::END);
@@ -368,37 +369,37 @@ namespace pv {
 	}
 
 	template <typename F>
-	inline std::vector<Symbol> block(Symbol sym, F&& fn) {
+	inline Tree block(Symbol sym, F&& fn) {
 		return block(sym.sv, sym.kind, std::forward<F>(fn));
 	}
 
-	inline std::vector<Symbol> cat(std::vector<Symbol> lhs, std::vector<Symbol> rhs) {
+	inline Tree cat(Tree lhs, Tree rhs) {
 		lhs.insert(lhs.end(), rhs.begin(), rhs.end());
 		return lhs;
 	}
 
 	// Parser functions.
-	inline std::vector<Symbol> program(Context&, Lexer&);
-	inline std::vector<Symbol> expression(Context&, Lexer&);
+	inline Tree program(Context&, Lexer&);
+	inline Tree expression(Context&, Lexer&);
 
-	inline std::vector<Symbol> let(Context&, Lexer&);
+	inline Tree let(Context&, Lexer&);
 
-	inline std::vector<Symbol> action(Context&, Lexer&);
-	inline std::vector<Symbol> command(Context&, Lexer&);
+	inline Tree action(Context&, Lexer&);
+	inline Tree command(Context&, Lexer&);
 
-	inline std::vector<Symbol> pattern(Context&, Lexer&);
+	inline Tree pattern(Context&, Lexer&);
 
-	inline std::vector<Symbol> midi(Context&, Lexer&);
-	inline std::vector<Symbol> literal(Context&, Lexer&);
+	inline Tree midi(Context&, Lexer&);
+	inline Tree literal(Context&, Lexer&);
 
 
-	inline std::vector<Symbol> program(Context& ctx, Lexer& lx) {
+	inline Tree program(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
 		expect(lx, is_expr, ErrorKind::EXPECT_EXPRESSION);
-		std::vector<Symbol> expr = expression(ctx, lx);
+		Tree expr = expression(ctx, lx);
 
 		tree.insert(tree.end(), expr.begin(), expr.end());
 
@@ -406,7 +407,7 @@ namespace pv {
 			Symbol comma = take(lx, ctx.syms);
 
 			expect(lx, is_expr, ErrorKind::EXPECT_EXPRESSION);
-			std::vector<Symbol> expr = expression(ctx, lx);
+			Tree expr = expression(ctx, lx);
 
 			tree.insert(tree.end(), expr.begin(), expr.end());
 		}
@@ -416,7 +417,7 @@ namespace pv {
 		return tree;
 	}
 
-	inline std::vector<Symbol> expression(Context& ctx, Lexer& lx) {
+	inline Tree expression(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
 		switch (lx.peek.kind) {
@@ -426,7 +427,7 @@ namespace pv {
 			case SymbolKind::STOP:
 			case SymbolKind::CLEAR:
 			case SymbolKind::INFO: {
-				std::vector<Symbol> tree;
+				Tree tree;
 
 				tree.emplace_back(lx.peek.sv, SymbolKind::SELECT);
 				tree.emplace_back(lx.peek.sv, SymbolKind::NONE);
@@ -455,13 +456,13 @@ namespace pv {
 		return {};
 	}
 
-	inline std::vector<Symbol> let(Context& ctx, Lexer& lx) {
+	inline Tree let(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
 		expect(lx, is(SymbolKind::LET), ErrorKind::EXPECT_LET);
 		Symbol let = take(lx, ctx.syms);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
 		do {
 			expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
@@ -476,10 +477,10 @@ namespace pv {
 	}
 
 
-	inline std::vector<Symbol> action(Context& ctx, Lexer& lx) {
+	inline Tree action(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 		tree.emplace_back(lx.peek.sv, SymbolKind::SELECT);
 
 		if (lx.peek.kind == SymbolKind::MIDI) {
@@ -504,11 +505,11 @@ namespace pv {
 		return tree;
 	}
 
-	inline std::vector<Symbol> command(Context& ctx, Lexer& lx) {
+	inline Tree command(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
 		expect(lx, is_command, ErrorKind::EXPECT_COMMAND);
-		std::vector<Symbol> tree;
+		Tree tree;
 
 		switch (lx.peek.kind) {
 			case SymbolKind::LEFT:  // Integer argument
@@ -546,10 +547,10 @@ namespace pv {
 		return tree;
 	}
 
-	inline std::vector<Symbol> pattern(Context& ctx, Lexer& lx) {
+	inline Tree pattern(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
 		expect(lx, is(SymbolKind::SEQUENCE, SymbolKind::PARALLEL), ErrorKind::EXPECT_PATTERN);
 		Symbol open = take(lx, ctx.syms);
@@ -575,10 +576,10 @@ namespace pv {
 		return tree;
 	}
 
-	inline std::vector<Symbol> midi(Context& ctx, Lexer& lx) {
+	inline Tree midi(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
 		expect(lx, is(SymbolKind::MIDI), ErrorKind::EXPECT_MIDI);
 		Symbol midi = take(lx, ctx.syms);
@@ -593,10 +594,10 @@ namespace pv {
 		return tree;
 	}
 
-	inline std::vector<Symbol> literal(Context& ctx, Lexer& lx) {
+	inline Tree literal(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
 		expect(lx, is_literal, ErrorKind::EXPECT_LITERAL);
 		switch (lx.peek.kind) {
@@ -618,89 +619,114 @@ namespace pv {
 	}
 
 	template <typename F, typename... Ts>
-	inline std::vector<Symbol>::iterator visitor(
+	inline Tree visitor(
 		const F& callback,
 		Context& ctx,
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator it,
+		const Tree& tree,
+		Tree::const_iterator& it,
 		Ts&&... args
 	) {
-		if (it == tree.end())
-			return it;
+		if (it == tree.cend())
+			return {};
 
-		std::vector<Symbol>::iterator current = it++;
-		bool matched = callback(ctx, tree, current, it, std::forward<Ts>(args)...);
-
-		if (not matched)
-			PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
-
-		return it;
+		Tree::const_iterator current = it++;
+		return callback(ctx, tree, current, it, std::forward<Ts>(args)...);
 	}
 
 	// Visit a block (i.e. a run of code terminated by `end`).
 	// This is a common pattern that shows up in most visitors that
 	// traverse the AST like a tree rather than a vector.
 	template <typename F, typename... Ts>
-	inline std::vector<Symbol>::iterator visit_block(
+	inline Tree visit_block_inclusive(
 		F&& fn,
 		Context& ctx,
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator it,
+		const Tree& tree,
+		Tree::const_iterator& it,
 		Ts&&... args
 	) {
-		std::vector<Symbol>::iterator before = it;
+		Tree new_tree;
 
-		while (it != tree.end() and cmp_none(it->kind, SymbolKind::END, SymbolKind::TERM))
-			it = visitor(fn, ctx, tree, it, std::forward<Ts>(args)...);
+		Tree::const_iterator before = it;
+
+		while (it != tree.cend() and cmp_none(it->kind, SymbolKind::END, SymbolKind::TERM)) {
+			new_tree = cat(new_tree, visitor(fn, ctx, tree, it, std::forward<Ts>(args)...));
+		}
 
 		if (it->kind != SymbolKind::END)
 			report(before->sv, ErrorKind::INVALID_AST);
 
-		return it + 1;
+		return new_tree;
+	}
+
+	template <typename F, typename... Ts>
+	inline Tree visit_block(
+		F&& fn,
+		Context& ctx,
+		const Tree& tree,
+		Tree::const_iterator& it,
+		Ts&&... args
+	) {
+		Tree new_tree = visit_block_inclusive(std::forward<F>(fn), ctx, tree, it, std::forward<Ts>(args)...);
+		++it;
+		return new_tree;
 	}
 
 	// Runs a pass by visiting every top level node until EOF is reached.
 	template <typename F, typename... Ts>
-	inline std::vector<Symbol>::iterator pass(
+	inline Tree pass(
 		F&& fn,
 		Context& ctx,
-		std::vector<Symbol>& tree,
+		const Tree& tree,
 		Ts&&... args
 	) {
-		std::vector<Symbol>::iterator it = tree.begin();
+		Tree new_tree;
+		Tree::const_iterator it = tree.cbegin();
 
-		while (it != tree.end() and it->kind != SymbolKind::TERM)
-			it = visitor(fn, ctx, tree, it, std::forward<Ts>(args)...);
+		while (it != tree.cend() and it->kind != SymbolKind::TERM) {
+			new_tree = cat(new_tree, visitor(fn, ctx, tree, it, std::forward<Ts>(args)...));
+		}
 
-		return it;
+		return new_tree;
 	}
 
-	template <typename F, typename... Ts>
-	inline std::vector<Symbol> get_block(
-		F&& fn,
-		Context& ctx,
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator it,
-		Ts&&... args
-	) {
-		std::vector<Symbol>::iterator before = it;
-		std::vector<Symbol>::iterator after = visit_block(fn, ctx, tree, it, std::forward<Ts>(args)...);
+	// template <typename F, typename... Ts>
+	// inline std::pair<Tree::const_iterator, Tree::const_iterator> visit_block_extent_inclusive(
+	// 	F&& fn,
+	// 	Context& ctx,
+	// 	const Tree& tree,
+	// 	Tree::const_iterator& it,
+	// 	Ts&&... args
+	// ) {
+	// 	Tree::const_iterator before = it;
+	// 	Tree::const_iterator after = visit_block_inclusive(fn, ctx, tree, it, std::forward<Ts>(args)...);
 
-		return { before, after - 1 };
-	}
+	// 	return { before, after };
+	// }
+
+	// template <typename F, typename... Ts>
+	// inline std::pair<Tree::const_iterator, Tree::const_iterator> visit_block_extent(
+	// 	F&& fn,
+	// 	Context& ctx,
+	// 	const Tree& tree,
+	// 	Tree::const_iterator it,
+	// 	Ts&&... args
+	// ) {
+	// 	auto [before, after] = visit_block_extent(std::forward<F>(fn), ctx, tree, it, std::forward<Ts>(args)...);
+	// 	return { before, after + 1 };
+	// }
 
 	namespace detail {
 		// TODO: Allow for passing a function that asserts some invariances about the
 		// node. For example we may want to check the kind of a node _and_ the value
 		// it contains.
 		template <typename X, typename Y>
-		inline std::vector<Symbol>::iterator match_impl(
-			std::vector<Symbol>& tree,
-			std::vector<Symbol>::iterator it,
+		inline Tree::const_iterator match_impl(
+			const Tree& tree,
+			Tree::const_iterator it,
 			X&& kind,
 			Y&& err
 		) {
-			bool is_matching = it != tree.end() and it->kind == kind;
+			bool is_matching = it != tree.cend() and it->kind == kind;
 
 			if (not is_matching)
 				report(it->sv, err);
@@ -710,9 +736,9 @@ namespace pv {
 	}
 
 	template <typename X, typename Y, typename... Ts>
-	inline std::vector<Symbol>::iterator match(
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator it,
+	inline Tree::const_iterator match(
+		const Tree& tree,
+		Tree::const_iterator it,
 		X&& kind,
 		Y&& err,
 		Ts&&... pairs
