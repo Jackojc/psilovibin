@@ -10,6 +10,7 @@
 #include <string_view>
 #include <iostream>
 #include <chrono>
+#include <thread>
 
 // JACK Audio
 extern "C" {
@@ -120,10 +121,7 @@ int main(int argc, const char* argv[]) {
 				// timeline(ctx, prog);
 
 				tree = cat(tree, prog);
-
-				Tree new_tree = printer(ctx, tree);
-				printer(ctx, new_tree);
-				PV_LOG(LogLevel::ERR, tree == new_tree);
+				printer(ctx, printer(ctx, tree));
 
 			auto passes_t2 = timer::now();
 

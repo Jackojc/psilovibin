@@ -618,56 +618,28 @@ namespace pv {
 		return tree;
 	}
 
-	template <typename F, typename... Ts>
-	inline Tree visitor(
-		const F& callback,
-		Context& ctx,
-		const Tree& tree,
-		Tree::const_iterator& it,
-		Ts&&... args
-	) {
-		if (it == tree.cend())
-			return {};
-
-		Tree::const_iterator current = it++;
-		return callback(ctx, tree, current, it, std::forward<Ts>(args)...);
-	}
-
 	// Visit a block (i.e. a run of code terminated by `end`).
 	// This is a common pattern that shows up in most visitors that
 	// traverse the AST like a tree rather than a vector.
 	template <typename F, typename... Ts>
-	inline Tree visit_block_inclusive(
+	inline Tree visit(
 		F&& fn,
 		Context& ctx,
-		const Tree& tree,
+		Tree tree,
 		Tree::const_iterator& it,
 		Ts&&... args
 	) {
 		Tree new_tree;
 
-		Tree::const_iterator before = it;
-
 		while (it != tree.cend() and cmp_none(it->kind, SymbolKind::END, SymbolKind::TERM)) {
-			new_tree = cat(new_tree, visitor(fn, ctx, tree, it, std::forward<Ts>(args)...));
+			Tree::const_iterator current = it++;
+			fn(ctx, tree, current, it, std::forward<Ts>(args)...);
+			new_tree.insert(new_tree.end(), current, it);
 		}
 
 		if (it->kind != SymbolKind::END)
-			report(before->sv, ErrorKind::INVALID_AST);
+			report(it->sv, ErrorKind::INVALID_AST);
 
-		return new_tree;
-	}
-
-	template <typename F, typename... Ts>
-	inline Tree visit_block(
-		F&& fn,
-		Context& ctx,
-		const Tree& tree,
-		Tree::const_iterator& it,
-		Ts&&... args
-	) {
-		Tree new_tree = visit_block_inclusive(std::forward<F>(fn), ctx, tree, it, std::forward<Ts>(args)...);
-		++it;
 		return new_tree;
 	}
 
@@ -676,44 +648,20 @@ namespace pv {
 	inline Tree pass(
 		F&& fn,
 		Context& ctx,
-		const Tree& tree,
+		Tree tree,
 		Ts&&... args
 	) {
 		Tree new_tree;
 		Tree::const_iterator it = tree.cbegin();
 
 		while (it != tree.cend() and it->kind != SymbolKind::TERM) {
-			new_tree = cat(new_tree, visitor(fn, ctx, tree, it, std::forward<Ts>(args)...));
+			Tree::const_iterator current = it++;
+			fn(ctx, tree, current, it, std::forward<Ts>(args)...);
+			new_tree.insert(new_tree.end(), current, it);
 		}
 
 		return new_tree;
 	}
-
-	// template <typename F, typename... Ts>
-	// inline std::pair<Tree::const_iterator, Tree::const_iterator> visit_block_extent_inclusive(
-	// 	F&& fn,
-	// 	Context& ctx,
-	// 	const Tree& tree,
-	// 	Tree::const_iterator& it,
-	// 	Ts&&... args
-	// ) {
-	// 	Tree::const_iterator before = it;
-	// 	Tree::const_iterator after = visit_block_inclusive(fn, ctx, tree, it, std::forward<Ts>(args)...);
-
-	// 	return { before, after };
-	// }
-
-	// template <typename F, typename... Ts>
-	// inline std::pair<Tree::const_iterator, Tree::const_iterator> visit_block_extent(
-	// 	F&& fn,
-	// 	Context& ctx,
-	// 	const Tree& tree,
-	// 	Tree::const_iterator it,
-	// 	Ts&&... args
-	// ) {
-	// 	auto [before, after] = visit_block_extent(std::forward<F>(fn), ctx, tree, it, std::forward<Ts>(args)...);
-	// 	return { before, after + 1 };
-	// }
 
 	namespace detail {
 		// TODO: Allow for passing a function that asserts some invariances about the
@@ -721,7 +669,7 @@ namespace pv {
 		// it contains.
 		template <typename X, typename Y>
 		inline Tree::const_iterator match_impl(
-			const Tree& tree,
+			Tree tree,
 			Tree::const_iterator it,
 			X&& kind,
 			Y&& err
@@ -737,7 +685,7 @@ namespace pv {
 
 	template <typename X, typename Y, typename... Ts>
 	inline Tree::const_iterator match(
-		const Tree& tree,
+		Tree tree,
 		Tree::const_iterator it,
 		X&& kind,
 		Y&& err,
@@ -752,6 +700,8 @@ namespace pv {
 
 		return it;
 	}
+
+	// TODO: Implement a matching function that accepts a Tree as input.
 }
 
 #endif

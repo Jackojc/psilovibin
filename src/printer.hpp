@@ -22,7 +22,7 @@ namespace pv {
 
 	Tree printer_impl(
 		Context& ctx,
-		const Tree& tree,
+		Tree tree,
 		Tree::const_iterator current,
 		Tree::const_iterator& it,
 		size_t spaces = 0
@@ -36,7 +36,8 @@ namespace pv {
 		const auto colour = colours[spaces % colours.size()];
 
 		switch (kind) {
-			case SymbolKind::NONE: {
+			case SymbolKind::NONE:
+			case SymbolKind::END: {
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 			} break;
 
@@ -54,13 +55,13 @@ namespace pv {
 			case SymbolKind::UP:
 			case SymbolKind::DOWN: {
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
-					return visit_block(printer_impl, ctx, tree, it, spaces + 1);
+					return visit(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
 			case SymbolKind::SEQUENCE:  // Note patterns.
 			case SymbolKind::PARALLEL: {
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
-					return visit_block(printer_impl, ctx, tree, it, spaces + 1);
+					return visit(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
 			case SymbolKind::GO:  // Commands with no arguments.
@@ -68,29 +69,29 @@ namespace pv {
 			case SymbolKind::CLEAR:
 			case SymbolKind::INFO: {
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
-					return visit_block(printer_impl, ctx, tree, it, spaces + 1);
+					return visit(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
 			case SymbolKind::MIDI:  // Expressions/Statements with no arguments.
 			case SymbolKind::SELECT: {
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
-					return visit_block(printer_impl, ctx, tree, it, spaces + 1);
+					return visit(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
 			case SymbolKind::LET: {  // Expressions/Statements with arguments.
 				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, " `", sv, "`", PV_RESET);
-					return visit_block(printer_impl, ctx, tree, it, spaces + 1);
+					return visit(printer_impl, ctx, tree, it, spaces + 1);
 			} break;
 
 			default: {
-				PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
+				PV_LOG(LogLevel::WRN, "unhandled symbol: `", kind, "`");
 			} break;
 		}
 
 		return {};
 	}
 
-	inline Tree printer(Context& ctx, Tree& tree) {
+	inline Tree printer(Context& ctx, Tree tree) {
 		PV_LOG(LogLevel::OK);
 		return pass(printer_impl, ctx, tree, 0ul);
 	}
