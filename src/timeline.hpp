@@ -96,7 +96,7 @@ namespace pv {
 		return it;
 	}
 
-	inline std::vector<Symbol>::iterator timeline(Context& ctx, std::vector<Symbol>& tree) {
+	inline [[nodiscard]] std::vector<Symbol>::iterator timeline(Context& ctx, std::vector<Symbol>& tree) {
 		PV_LOG(LogLevel::OK);
 
 		std::vector<Symbol> stack;

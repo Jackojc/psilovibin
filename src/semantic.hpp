@@ -114,7 +114,7 @@ namespace pv {
 		return it;
 	}
 
-	inline std::vector<Symbol>::iterator semantic(Context& ctx, std::vector<Symbol>& tree) {
+	inline [[nodiscard]] std::vector<Symbol>::iterator semantic(Context& ctx, std::vector<Symbol>& tree) {
 		PV_LOG(LogLevel::OK);
 		return pass(semantic_impl, ctx, tree);
 	}

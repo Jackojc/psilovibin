@@ -14,35 +14,33 @@
 	its structure.
 */
 namespace pv {
-	std::vector<Symbol>::iterator canonicalise_impl(
+	Tree canonicalise_impl(
 		Context& ctx,
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator current,
-		std::vector<Symbol>::iterator it
+		Tree tree,
+		Tree::const_iterator current,
+		Tree::const_iterator& it
 	) {
 		auto [sv, kind] = *current;
 
 		switch (kind) {
-			case SymbolKind::NONE: {
-
+			case SymbolKind::END: {
+				// return { *current };
 			} break;
 
-			case SymbolKind::STRING:  // Literals.
+			case SymbolKind::NONE:  // Literals.
+			case SymbolKind::STRING:
 			case SymbolKind::INTEGER: {
-
+				return { *current };
 			} break;
 
 			case SymbolKind::IDENTIFIER: {
 				if (auto sym_it = ctx.syms.find(sv); sym_it != ctx.syms.end()) {
+					PV_LOG(LogLevel::OK, "found ref: ", sv);
 					auto [view, subtree] = *sym_it;
-
-					it = tree.erase(current);
-					it = tree.insert(it, subtree.begin(), subtree.end());
+					return subtree;
 				}
 
-				else {
-					report(sv, ErrorKind::UNKNOWN_SYMBOL);
-				}
+				report(sv, ErrorKind::UNKNOWN_SYMBOL);
 			} break;
 
 			case SymbolKind::LEFT:  // Commands with arguments.
@@ -52,48 +50,46 @@ namespace pv {
 			case SymbolKind::TIME:
 			case SymbolKind::UP:
 			case SymbolKind::DOWN: {
-				it = visit_block(canonicalise_impl, ctx, tree, it);
+				return visit(canonicalise_impl, ctx, tree, it);
 			} break;
 
 			case SymbolKind::SEQUENCE:  // Note patterns.
 			case SymbolKind::PARALLEL: {
-				it = visit_block(canonicalise_impl, ctx, tree, it);
+				return visit(canonicalise_impl, ctx, tree, it);
 			} break;
 
 			case SymbolKind::GO:  // Commands with no arguments.
 			case SymbolKind::STOP:
 			case SymbolKind::CLEAR:
 			case SymbolKind::INFO: {
-				it = visit_block(canonicalise_impl, ctx, tree, it);
+				return visit(canonicalise_impl, ctx, tree, it);
 			} break;
 
 			case SymbolKind::MIDI: {  // Expressions/Statements with no arguments.
-				it = visit_block(canonicalise_impl, ctx, tree, it);
+				return visit(canonicalise_impl, ctx, tree, it);
 			} break;
 
 			case SymbolKind::SELECT: {
 				// TODO: We can remove either the MIDI or SELECT block here now since we have
 				// canonicalised the tree and we don't expect to find an identifier inside a SELECT block.
 
-				auto [before, after] = visit_block_extent_inclusive(canonicalise_impl, ctx, tree, it);
+				// auto [before, after] = visit_block_extent_inclusive(canonicalise_impl, ctx, tree, it);
 
-				PV_LOG(LogLevel::ERR, before->kind);
-				PV_LOG(LogLevel::ERR, after->kind);
+				// PV_LOG(LogLevel::ERR, before->kind);
+				// PV_LOG(LogLevel::ERR, after->kind);
 
-				it = ++after;
+				// it = ++after;
+				return visit(canonicalise_impl, ctx, tree, it);
 			} break;
 
 			case SymbolKind::LET: {  // Expressions/Statements with arguments.
-				auto [before, after] = visit_block_extent_inclusive(canonicalise_impl, ctx, tree, it);
+				Tree expr = visit(canonicalise_impl, ctx, tree, it);
 
 				// Insert or re-assign symbol.
-				if (auto [sym_it, succ] = ctx.syms.try_emplace(sv, before, after); not succ) {
+				if (auto [sym_it, succ] = ctx.syms.try_emplace(sv, expr); not succ) {
 					auto& [view, sym] = *sym_it;
-					sym.assign(before, after);
+					sym = expr;
 				}
-
-				it = ++after;
-				it = tree.erase(current, after);  // Erase this assignment from the tree since we have stored it.
 			} break;
 
 			default: {
@@ -101,10 +97,10 @@ namespace pv {
 			} break;
 		}
 
-		return it;
+		return {};
 	}
 
-	inline std::vector<Symbol>::iterator canonicalise(Context& ctx, std::vector<Symbol>& tree) {
+	[[nodiscard]] inline Tree canonicalise(Context& ctx, Tree tree) {
 		PV_LOG(LogLevel::OK);
 		return pass(canonicalise_impl, ctx, tree);
 	}

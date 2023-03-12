@@ -29,7 +29,7 @@ extern "C" {
 // #include <dot.hpp>
 
 // Passes
-// #include <canonicalise.hpp>
+#include <canonicalise.hpp>
 // #include <semantic.hpp>
 // #include <fold.hpp>
 // #include <timeline.hpp>
@@ -116,12 +116,20 @@ int main(int argc, const char* argv[]) {
 			// Passes.
 			auto passes_t1 = timer::now();
 
-				// canonicalise(ctx, prog);
+				auto dump = [&] (Tree t) {
+					for (Symbol s: t) {
+						println(std::cout, s);
+					}
+				};
+
+				prog = canonicalise(ctx, prog);
+				dump(prog);
 				// semantic(ctx, prog);
 				// timeline(ctx, prog);
 
 				tree = cat(tree, prog);
-				printer(ctx, printer(ctx, tree));
+				tree = printer(ctx, tree);
+				// printer(ctx, printer(ctx, tree));
 
 			auto passes_t2 = timer::now();
 

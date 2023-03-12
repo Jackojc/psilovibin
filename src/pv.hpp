@@ -633,8 +633,8 @@ namespace pv {
 
 		while (it != tree.cend() and cmp_none(it->kind, SymbolKind::END, SymbolKind::TERM)) {
 			Tree::const_iterator current = it++;
-			fn(ctx, tree, current, it, std::forward<Ts>(args)...);
-			new_tree.insert(new_tree.end(), current, it);
+			new_tree = cat(new_tree, fn(ctx, tree, current, it, std::forward<Ts>(args)...));
+			// new_tree.insert(new_tree.end(), current, it);
 		}
 
 		if (it->kind != SymbolKind::END)
@@ -656,8 +656,8 @@ namespace pv {
 
 		while (it != tree.cend() and it->kind != SymbolKind::TERM) {
 			Tree::const_iterator current = it++;
-			fn(ctx, tree, current, it, std::forward<Ts>(args)...);
-			new_tree.insert(new_tree.end(), current, it);
+			new_tree = cat(new_tree, fn(ctx, tree, current, it, std::forward<Ts>(args)...));
+			// new_tree.insert(new_tree.end(), current, it);
 		}
 
 		return new_tree;

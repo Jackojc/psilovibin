@@ -38,7 +38,7 @@ namespace pv {
 		switch (kind) {
 			case SymbolKind::NONE:
 			case SymbolKind::END: {
-				detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
+				// detail::indent(std::cerr, spaces); println(std::cerr, colour, kind, PV_RESET);
 			} break;
 
 			case SymbolKind::STRING:  // Literals.
@@ -91,7 +91,7 @@ namespace pv {
 		return {};
 	}
 
-	inline Tree printer(Context& ctx, Tree tree) {
+	[[nodiscard]] inline Tree printer(Context& ctx, Tree tree) {
 		PV_LOG(LogLevel::OK);
 		return pass(printer_impl, ctx, tree, 0ul);
 	}
