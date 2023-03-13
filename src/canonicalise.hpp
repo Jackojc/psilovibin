@@ -23,9 +23,7 @@ namespace pv {
 		auto [sv, kind] = *current;
 
 		switch (kind) {
-			case SymbolKind::NONE: {
-
-			} break;
+			case SymbolKind::NONE: break;
 
 			case SymbolKind::STRING:  // Literals.
 			case SymbolKind::INTEGER: {
@@ -33,11 +31,6 @@ namespace pv {
 			} break;
 
 			case SymbolKind::IDENTIFIER: {
-				// TODO: Just replace identifier with stored sub-tree. We can worry about
-				// whether or not it's correct in the semantic analysis pass. This should
-				// simplify things a lot // because we wont require duplicated code in all block
-				// -like nodes to replace identifiers with their corresponding sub-tree.
-
 				if (auto sym_it = ctx.syms.find(sv); sym_it != ctx.syms.end()) {
 					auto [view, subtree] = *sym_it;
 
@@ -74,7 +67,9 @@ namespace pv {
 
 			case SymbolKind::MIDI:   // Expressions/Statements with no arguments.
 			case SymbolKind::SELECT: {
+				it = tree.erase(current);
 				it = visit_block(canonicalise_impl, ctx, tree, it);
+				it = tree.erase(it);
 			} break;
 
 			case SymbolKind::LET: {  // Expressions/Statements with arguments.

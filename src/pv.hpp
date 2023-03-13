@@ -86,12 +86,6 @@ namespace pv {
 	}
 }
 
-// Symbol Table
-namespace pv {
-	struct Symbol;
-	using SymbolTable = std::unordered_map<View, std::vector<Symbol>>;  // TODO: Use a prefix/radix tree
-}
-
 // Lexer
 namespace pv {
 	constexpr bool is_visible(View sv) {
@@ -216,99 +210,125 @@ namespace pv {
 			src(src_), sv(src_),
 			peek(pv::peek(src_), SymbolKind::NONE),
 			prev(pv::peek(src_), SymbolKind::NONE) {}
-	};
 
-	[[nodiscard]] inline Symbol take(Lexer& lx, const SymbolTable& syms) {
-		View ws = take_while(lx.sv, is_whitespace);
-		Symbol sym { peek(lx.sv), SymbolKind::NONE };
-
-		if (empty(lx.sv))  // EOF
-			sym.kind = SymbolKind::TERM;
-
-		else if (sym.sv == ","_sv) { sym.kind = SymbolKind::COMMA; lx.sv = next(lx.sv); }
-
-		else if (sym.sv == "["_sv) { sym.kind = SymbolKind::SEQUENCE; lx.sv = next(lx.sv); }
-		else if (sym.sv == "]"_sv) { sym.kind = SymbolKind::SEQUENCE_END; lx.sv = next(lx.sv); }
-
-		else if (sym.sv == "("_sv) { sym.kind = SymbolKind::PARALLEL; lx.sv = next(lx.sv); }
-		else if (sym.sv == ")"_sv) { sym.kind = SymbolKind::PARALLEL_END; lx.sv = next(lx.sv); }
-
-		else if (sym.sv == "\""_sv) {
-			sym.kind = SymbolKind::STRING;
-			lx.sv = next(lx.sv);
-
-			sym.sv = take_while(lx.sv, [] (View sv) {
-				return sv != "\"";
-			});
-
-			lx.sv = next(lx.sv);
+		template <typename F> constexpr void expect(F&& fn, ErrorKind x) {
+			if (not fn(peek))
+				report(peek.sv, x);
 		}
 
-		else if (is_digit(sym.sv)) {
-			sym.kind = SymbolKind::INTEGER;
-			sym.sv = take_while(lx.sv, is_digit);
-		}
+		[[nodiscard]] inline Symbol take() {
+			View ws = take_while(sv, is_whitespace);
+			Symbol sym { pv::peek(sv), SymbolKind::NONE };
 
-		else if (is_alpha(sym.sv)) {  // Identifiers.
-			sym.kind = SymbolKind::IDENTIFIER;
-			sym.sv = take_while(lx.sv, is_alphanumeric);
+			if (empty(sv))  // EOF
+				sym.kind = SymbolKind::TERM;
 
-			if (begins_with(sym.sv, "#"_sv)) {  // Comments.
-				View comment = take_while(lx.sv, [] (View sv) {
-					return sv != "\n"_sv;
+			else if (sym.sv == ","_sv) { sym.kind = SymbolKind::COMMA; sv = next(sv); }
+
+			else if (sym.sv == "["_sv) { sym.kind = SymbolKind::SEQUENCE; sv = next(sv); }
+			else if (sym.sv == "]"_sv) { sym.kind = SymbolKind::SEQUENCE_END; sv = next(sv); }
+
+			else if (sym.sv == "("_sv) { sym.kind = SymbolKind::PARALLEL; sv = next(sv); }
+			else if (sym.sv == ")"_sv) { sym.kind = SymbolKind::PARALLEL_END; sv = next(sv); }
+
+			else if (sym.sv == "\""_sv) {
+				sym.kind = SymbolKind::STRING;
+				sv = next(sv);
+
+				sym.sv = take_while(sv, [] (View sv) {
+					return sv != "\"";
 				});
 
-				lx.sv = next(lx.sv);
-				return take(lx, syms);
+				sv = next(sv);
 			}
 
-			// TODO: Use incremental matching for keywords/symbols.
+			else if (is_digit(sym.sv)) {
+				sym.kind = SymbolKind::INTEGER;
+				sym.sv = take_while(sv, is_digit);
+			}
 
-			if      (sym.sv == "go"_sv)       sym.kind = SymbolKind::GO;
-			else if (sym.sv == "stop"_sv)     sym.kind = SymbolKind::STOP;
-			else if (sym.sv == "left"_sv)     sym.kind = SymbolKind::LEFT;
-			else if (sym.sv == "right"_sv)    sym.kind = SymbolKind::RIGHT;
-			else if (sym.sv == "velocity"_sv) sym.kind = SymbolKind::VELOCITY;
-			else if (sym.sv == "bpm"_sv)      sym.kind = SymbolKind::BPM;
-			else if (sym.sv == "time"_sv)     sym.kind = SymbolKind::TIME;
-			else if (sym.sv == "clear"_sv)    sym.kind = SymbolKind::CLEAR;
-			else if (sym.sv == "info"_sv)     sym.kind = SymbolKind::INFO;
-			else if (sym.sv == "up"_sv)       sym.kind = SymbolKind::UP;
-			else if (sym.sv == "down"_sv)     sym.kind = SymbolKind::DOWN;
+			else if (is_alpha(sym.sv)) {  // Identifiers.
+				sym.kind = SymbolKind::IDENTIFIER;
+				sym.sv = take_while(sv, is_alphanumeric);
 
-			else if (sym.sv == "midi"_sv)  sym.kind = SymbolKind::MIDI;
-			else if (sym.sv == "let"_sv)   sym.kind = SymbolKind::LET;
+				if (begins_with(sym.sv, "#"_sv)) {  // Comments.
+					View comment = take_while(sv, [] (View sv) {
+						return sv != "\n"_sv;
+					});
+
+					sv = next(sv);
+					return take();
+				}
+
+				// TODO: Use incremental matching for keywords/symbols.
+
+				if      (sym.sv == "go"_sv)       sym.kind = SymbolKind::GO;
+				else if (sym.sv == "stop"_sv)     sym.kind = SymbolKind::STOP;
+				else if (sym.sv == "left"_sv)     sym.kind = SymbolKind::LEFT;
+				else if (sym.sv == "right"_sv)    sym.kind = SymbolKind::RIGHT;
+				else if (sym.sv == "velocity"_sv) sym.kind = SymbolKind::VELOCITY;
+				else if (sym.sv == "bpm"_sv)      sym.kind = SymbolKind::BPM;
+				else if (sym.sv == "time"_sv)     sym.kind = SymbolKind::TIME;
+				else if (sym.sv == "clear"_sv)    sym.kind = SymbolKind::CLEAR;
+				else if (sym.sv == "info"_sv)     sym.kind = SymbolKind::INFO;
+				else if (sym.sv == "up"_sv)       sym.kind = SymbolKind::UP;
+				else if (sym.sv == "down"_sv)     sym.kind = SymbolKind::DOWN;
+
+				else if (sym.sv == "midi"_sv)  sym.kind = SymbolKind::MIDI;
+				else if (sym.sv == "let"_sv)   sym.kind = SymbolKind::LET;
+			}
+
+			else
+				// TODO: This fails and prints nothing (visibly) if character is UTF-8.
+				report(sym.sv, ErrorKind::UNKNOWN_CHAR);
+
+			Symbol out = peek;
+
+			prev = peek;
+			peek = sym;
+
+			PV_LOG(LogLevel::INF, "current: ", out);
+			PV_LOG(LogLevel::INF, "peek: ", sym);
+
+			return out;
 		}
-
-		else
-			// TODO: This fails and prints nothing (visibly) if character is UTF-8.
-			report(sym.sv, ErrorKind::UNKNOWN_CHAR);
-
-		Symbol out = lx.peek;
-
-		lx.prev = lx.peek;
-		lx.peek = sym;
-
-		PV_LOG(LogLevel::INF, "current: ", out);
-		PV_LOG(LogLevel::INF, "peek: ", sym);
-
-		return out;
-	}
+	};
 
 	template <typename... Ts>
 	constexpr decltype(auto) is(Ts&&... kinds) {
 		return [=] (Symbol other) { return ((other.kind == kinds) or ...); };
 	}
-
-	template <typename F> constexpr void expect(Lexer& lx, F&& fn, ErrorKind x) {
-		if (not fn(lx.peek))
-			report(lx.peek.sv, x);
-	}
 }
 
 // Parser
 namespace pv {
+	struct Tree: public std::vector<Symbol> {
+		using std::vector<Symbol>::vector;
+
+		Tree cat(Tree other) {
+			insert(end(), other.begin(), other.end());
+			return *this;
+		}
+	};
+
+	inline std::ostream& operator<<(std::ostream& os, const Tree& t) {
+		os << '[';
+
+		if (not t.empty()) {
+			auto it = t.begin();
+
+			os << *it;
+
+			for (++it; it != t.end(); ++it)
+				os << ", " << *it;
+		}
+
+		return (os << ']');
+	}
+
 	// Store global information about program.
+	using SymbolTable = std::unordered_map<View, Tree>;
+
 	struct Context {
 		SymbolTable syms;
 	};
@@ -354,69 +374,46 @@ namespace pv {
 			SymbolKind::MIDI);
 	}
 
-	// Utilities
-	template <typename F>
-	inline std::vector<Symbol> block(View sv, SymbolKind kind, F&& fn) {
-		std::vector<Symbol> tree;
-		tree.emplace_back(sv, kind);
-
-		std::vector<Symbol> inner_tree = fn();
-		tree.insert(tree.end(), inner_tree.begin(), inner_tree.end());
-
-		tree.emplace_back(sv, SymbolKind::END);
-		return tree;
-	}
-
-	template <typename F>
-	inline std::vector<Symbol> block(Symbol sym, F&& fn) {
-		return block(sym.sv, sym.kind, std::forward<F>(fn));
-	}
-
-	inline std::vector<Symbol> cat(std::vector<Symbol> lhs, std::vector<Symbol> rhs) {
-		lhs.insert(lhs.end(), rhs.begin(), rhs.end());
-		return lhs;
-	}
-
 	// Parser functions.
-	inline std::vector<Symbol> program(Context&, Lexer&);
-	inline std::vector<Symbol> expression(Context&, Lexer&);
+	inline Tree program(Context&, Lexer&);
+	inline Tree expression(Context&, Lexer&);
 
-	inline std::vector<Symbol> let(Context&, Lexer&);
+	inline Tree let(Context&, Lexer&);
 
-	inline std::vector<Symbol> action(Context&, Lexer&);
-	inline std::vector<Symbol> command(Context&, Lexer&);
+	inline Tree action(Context&, Lexer&);
+	inline Tree command(Context&, Lexer&);
 
-	inline std::vector<Symbol> pattern(Context&, Lexer&);
+	inline Tree pattern(Context&, Lexer&);
 
-	inline std::vector<Symbol> midi(Context&, Lexer&);
-	inline std::vector<Symbol> literal(Context&, Lexer&);
+	inline Tree midi(Context&, Lexer&);
+	inline Tree literal(Context&, Lexer&);
 
 
-	inline std::vector<Symbol> program(Context& ctx, Lexer& lx) {
+	inline Tree program(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
-		expect(lx, is_expr, ErrorKind::EXPECT_EXPRESSION);
-		std::vector<Symbol> expr = expression(ctx, lx);
+		lx.expect(is_expr, ErrorKind::EXPECT_EXPRESSION);
+		Tree expr = expression(ctx, lx);
 
 		tree.insert(tree.end(), expr.begin(), expr.end());
 
 		while (lx.peek.kind == SymbolKind::COMMA) {
-			Symbol comma = take(lx, ctx.syms);
+			Symbol comma = lx.take();
 
-			expect(lx, is_expr, ErrorKind::EXPECT_EXPRESSION);
-			std::vector<Symbol> expr = expression(ctx, lx);
+			lx.expect(is_expr, ErrorKind::EXPECT_EXPRESSION);
+			Tree expr = expression(ctx, lx);
 
 			tree.insert(tree.end(), expr.begin(), expr.end());
 		}
 
-		expect(lx, is(SymbolKind::TERM), ErrorKind::UNEXPECTED_TOKEN);
+		lx.expect(is(SymbolKind::TERM), ErrorKind::UNEXPECTED_TOKEN);
 
 		return tree;
 	}
 
-	inline std::vector<Symbol> expression(Context& ctx, Lexer& lx) {
+	inline Tree expression(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
 		switch (lx.peek.kind) {
@@ -426,17 +423,15 @@ namespace pv {
 			case SymbolKind::STOP:
 			case SymbolKind::CLEAR:
 			case SymbolKind::INFO: {
-				std::vector<Symbol> tree;
+				Tree tree;
 
+				tree.emplace_back(lx.peek.sv, SymbolKind::NONE);
 				tree.emplace_back(lx.peek.sv, SymbolKind::SELECT);
+
+				Symbol command = lx.take();
+
 				tree.emplace_back(lx.peek.sv, SymbolKind::NONE);
-				tree.emplace_back(lx.peek.sv, SymbolKind::END);
-
-				Symbol command = take(lx, ctx.syms);
-
 				tree.push_back(command);
-				tree.emplace_back(lx.peek.sv, SymbolKind::NONE);
-				tree.emplace_back(lx.prev.sv, SymbolKind::END);
 
 				return tree;
 			} break;
@@ -455,60 +450,56 @@ namespace pv {
 		return {};
 	}
 
-	inline std::vector<Symbol> let(Context& ctx, Lexer& lx) {
+	inline Tree let(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		expect(lx, is(SymbolKind::LET), ErrorKind::EXPECT_LET);
-		Symbol let = take(lx, ctx.syms);
+		lx.expect(is(SymbolKind::LET), ErrorKind::EXPECT_LET);
+		Symbol let = lx.take();
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
 		do {
-			expect(lx, is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
-			Symbol ident = take(lx, ctx.syms);
+			lx.expect(is(SymbolKind::IDENTIFIER), ErrorKind::EXPECT_IDENTIFIER);
+			Symbol ident = lx.take();
 
+			tree.cat(literal(ctx, lx));
 			tree.emplace_back(ident.sv, SymbolKind::LET);
-			tree = cat(tree, literal(ctx, lx));
-			tree.emplace_back(lx.prev.sv, SymbolKind::END);
 		} while (lx.peek.kind == SymbolKind::IDENTIFIER);
 
 		return tree;
 	}
 
 
-	inline std::vector<Symbol> action(Context& ctx, Lexer& lx) {
+	inline Tree action(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
-		tree.emplace_back(lx.peek.sv, SymbolKind::SELECT);
+		Tree tree;
 
-		if (lx.peek.kind == SymbolKind::MIDI) {
-			tree = cat(tree, midi(ctx, lx));
-		}
+		if (lx.peek.kind == SymbolKind::MIDI)
+			tree.cat(midi(ctx, lx));
 
 		else if (lx.peek.kind == SymbolKind::IDENTIFIER) {
-			Symbol ident = take(lx, ctx.syms);
+			Symbol ident = lx.take();
 			tree.push_back(ident);
 		}
 
-		else {
+		else
 			report(lx.peek.sv, ErrorKind::EXPECT_MIDI_IDENT);
-		}
 
-		tree.emplace_back(lx.peek.sv, SymbolKind::END);
+		tree.emplace_back(lx.peek.sv, SymbolKind::SELECT);
 
-		expect(lx, is_command, ErrorKind::EXPECT_COMMAND);
+		lx.expect(is_command, ErrorKind::EXPECT_COMMAND);
 		while (is_command(lx.peek))
-			tree = cat(tree, command(ctx, lx));
+			tree.cat(command(ctx, lx));
 
 		return tree;
 	}
 
-	inline std::vector<Symbol> command(Context& ctx, Lexer& lx) {
+	inline Tree command(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		expect(lx, is_command, ErrorKind::EXPECT_COMMAND);
-		std::vector<Symbol> tree;
+		lx.expect(is_command, ErrorKind::EXPECT_COMMAND);
+		Tree tree;
 
 		switch (lx.peek.kind) {
 			case SymbolKind::LEFT:  // Integer argument
@@ -518,26 +509,23 @@ namespace pv {
 			case SymbolKind::TIME:
 			case SymbolKind::UP:
 			case SymbolKind::DOWN: {
-				Symbol command = take(lx, ctx.syms);
-
+				Symbol command = lx.take();
+				tree.cat(literal(ctx, lx));
 				tree.push_back(command);
-				tree = cat(tree, literal(ctx, lx));
-				tree.emplace_back(lx.prev.sv, SymbolKind::END);
 			} break;
 
 			case SymbolKind::GO:  // No arguments
 			case SymbolKind::STOP:
 			case SymbolKind::CLEAR: {
-				Symbol command = take(lx, ctx.syms);
+				Symbol command = lx.take();
 
-				tree.push_back(command);
 				tree.emplace_back(lx.peek.sv, SymbolKind::NONE);
-				tree.emplace_back(lx.prev.sv, SymbolKind::END);
+				tree.push_back(command);
 			} break;
 
 			case SymbolKind::SEQUENCE:
 			case SymbolKind::PARALLEL: {
-				tree = cat(tree, pattern(ctx, lx));
+				tree.cat(pattern(ctx, lx));
 			} break;
 
 			default: break;
@@ -546,69 +534,67 @@ namespace pv {
 		return tree;
 	}
 
-	inline std::vector<Symbol> pattern(Context& ctx, Lexer& lx) {
+	inline Tree pattern(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
-		expect(lx, is(SymbolKind::SEQUENCE, SymbolKind::PARALLEL), ErrorKind::EXPECT_PATTERN);
-		Symbol open = take(lx, ctx.syms);
+		lx.expect(is(SymbolKind::SEQUENCE, SymbolKind::PARALLEL), ErrorKind::EXPECT_PATTERN);
+		Symbol open = lx.take();
 
 		tree.push_back(open);
 
 		while (cmp_any(lx.peek.kind, SymbolKind::SEQUENCE, SymbolKind::PARALLEL) or is_literal(lx.peek)) {
 			if (cmp_any(lx.peek.kind, SymbolKind::SEQUENCE, SymbolKind::PARALLEL))
-				tree = cat(tree, pattern(ctx, lx));
+				tree.cat(pattern(ctx, lx));
 
 			else if (is_literal(lx.peek))
-				tree = cat(tree, literal(ctx, lx));
+				tree.cat(literal(ctx, lx));
 
 			else
 				report(lx.peek.sv, ErrorKind::EXPECT_PATTERN);
 		}
 
-		expect(lx, is(SymbolKind::SEQUENCE_END, SymbolKind::PARALLEL_END), ErrorKind::EXPECT_PATTERN_END);
-		Symbol close = take(lx, ctx.syms);
+		lx.expect(is(SymbolKind::SEQUENCE_END, SymbolKind::PARALLEL_END), ErrorKind::EXPECT_PATTERN_END);
+		Symbol close = lx.take();
 
 		tree.emplace_back(close.sv, SymbolKind::END);
 
 		return tree;
 	}
 
-	inline std::vector<Symbol> midi(Context& ctx, Lexer& lx) {
+	inline Tree midi(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
-		expect(lx, is(SymbolKind::MIDI), ErrorKind::EXPECT_MIDI);
-		Symbol midi = take(lx, ctx.syms);
+		lx.expect(is(SymbolKind::MIDI), ErrorKind::EXPECT_MIDI);
+		Symbol midi = lx.take();
+
+		tree.cat(literal(ctx, lx));
+		tree.cat(literal(ctx, lx));
 
 		tree.push_back(midi);
-
-		tree = cat(tree, literal(ctx, lx));
-		tree = cat(tree, literal(ctx, lx));
-
-		tree.emplace_back(lx.peek.sv, SymbolKind::END);
 
 		return tree;
 	}
 
-	inline std::vector<Symbol> literal(Context& ctx, Lexer& lx) {
+	inline Tree literal(Context& ctx, Lexer& lx) {
 		PV_LOG(LogLevel::WRN);
 
-		std::vector<Symbol> tree;
+		Tree tree;
 
-		expect(lx, is_literal, ErrorKind::EXPECT_LITERAL);
+		lx.expect(is_literal, ErrorKind::EXPECT_LITERAL);
 		switch (lx.peek.kind) {
 			case SymbolKind::INTEGER:
 			case SymbolKind::IDENTIFIER:
 			case SymbolKind::STRING: {
-				Symbol lit = take(lx, ctx.syms);
+				Symbol lit = lx.take();
 				tree.push_back(lit);
 			} break;
 
 			case SymbolKind::MIDI: {
-				tree = cat(tree, midi(ctx, lx));
+				tree.cat(midi(ctx, lx));
 			} break;
 
 			default: break;
@@ -617,115 +603,115 @@ namespace pv {
 		return tree;
 	}
 
-	template <typename F, typename... Ts>
-	inline std::vector<Symbol>::iterator visitor(
-		const F& callback,
-		Context& ctx,
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator it,
-		Ts&&... args
-	) {
-		if (it == tree.end())
-			return it;
+	// template <typename F, typename... Ts>
+	// inline Tree::iterator visitor(
+	// 	const F& callback,
+	// 	Context& ctx,
+	// 	Tree& tree,
+	// 	Tree::iterator it,
+	// 	Ts&&... args
+	// ) {
+	// 	if (it == tree.end())
+	// 		return it;
 
-		std::vector<Symbol>::iterator current = it++;
-		bool matched = callback(ctx, tree, current, it, std::forward<Ts>(args)...);
+	// 	Tree::iterator current = it++;
+	// 	bool matched = callback(ctx, tree, current, it, std::forward<Ts>(args)...);
 
-		if (not matched)
-			PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
+	// 	if (not matched)
+	// 		PV_LOG(LogLevel::WRN, "unhandled symbol: `", current->kind, "`");
 
-		return it;
-	}
+	// 	return it;
+	// }
 
-	// Visit a block (i.e. a run of code terminated by `end`).
-	// This is a common pattern that shows up in most visitors that
-	// traverse the AST like a tree rather than a vector.
-	template <typename F, typename... Ts>
-	inline std::vector<Symbol>::iterator visit_block(
-		F&& fn,
-		Context& ctx,
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator it,
-		Ts&&... args
-	) {
-		std::vector<Symbol>::iterator before = it;
+	// // Visit a block (i.e. a run of code terminated by `end`).
+	// // This is a common pattern that shows up in most visitors that
+	// // traverse the AST like a tree rather than a vector.
+	// template <typename F, typename... Ts>
+	// inline Tree::iterator visit_block(
+	// 	F&& fn,
+	// 	Context& ctx,
+	// 	Tree& tree,
+	// 	Tree::iterator it,
+	// 	Ts&&... args
+	// ) {
+	// 	Tree::iterator before = it;
 
-		while (it != tree.end() and cmp_none(it->kind, SymbolKind::END, SymbolKind::TERM))
-			it = visitor(fn, ctx, tree, it, std::forward<Ts>(args)...);
+	// 	while (it != tree.end() and cmp_none(it->kind, SymbolKind::END, SymbolKind::TERM))
+	// 		it = visitor(fn, ctx, tree, it, std::forward<Ts>(args)...);
 
-		if (it->kind != SymbolKind::END)
-			report(before->sv, ErrorKind::INVALID_AST);
+	// 	if (it->kind != SymbolKind::END)
+	// 		report(before->sv, ErrorKind::INVALID_AST);
 
-		return it + 1;
-	}
+	// 	return it + 1;
+	// }
 
-	// Runs a pass by visiting every top level node until EOF is reached.
-	template <typename F, typename... Ts>
-	inline std::vector<Symbol>::iterator pass(
-		F&& fn,
-		Context& ctx,
-		std::vector<Symbol>& tree,
-		Ts&&... args
-	) {
-		std::vector<Symbol>::iterator it = tree.begin();
+	// // Runs a pass by visiting every top level node until EOF is reached.
+	// template <typename F, typename... Ts>
+	// inline Tree::iterator pass(
+	// 	F&& fn,
+	// 	Context& ctx,
+	// 	Tree& tree,
+	// 	Ts&&... args
+	// ) {
+	// 	Tree::iterator it = tree.begin();
 
-		while (it != tree.end() and it->kind != SymbolKind::TERM)
-			it = visitor(fn, ctx, tree, it, std::forward<Ts>(args)...);
+	// 	while (it != tree.end() and it->kind != SymbolKind::TERM)
+	// 		it = visitor(fn, ctx, tree, it, std::forward<Ts>(args)...);
 
-		return it;
-	}
+	// 	return it;
+	// }
 
-	template <typename F, typename... Ts>
-	inline std::vector<Symbol> get_block(
-		F&& fn,
-		Context& ctx,
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator it,
-		Ts&&... args
-	) {
-		std::vector<Symbol>::iterator before = it;
-		std::vector<Symbol>::iterator after = visit_block(fn, ctx, tree, it, std::forward<Ts>(args)...);
+	// template <typename F, typename... Ts>
+	// inline Tree get_block(
+	// 	F&& fn,
+	// 	Context& ctx,
+	// 	Tree& tree,
+	// 	Tree::iterator it,
+	// 	Ts&&... args
+	// ) {
+	// 	Tree::iterator before = it;
+	// 	Tree::iterator after = visit_block(fn, ctx, tree, it, std::forward<Ts>(args)...);
 
-		return { before, after - 1 };
-	}
+	// 	return { before, after - 1 };
+	// }
 
-	namespace detail {
-		// TODO: Allow for passing a function that asserts some invariances about the
-		// node. For example we may want to check the kind of a node _and_ the value
-		// it contains.
-		template <typename X, typename Y>
-		inline std::vector<Symbol>::iterator match_impl(
-			std::vector<Symbol>& tree,
-			std::vector<Symbol>::iterator it,
-			X&& kind,
-			Y&& err
-		) {
-			bool is_matching = it != tree.end() and it->kind == kind;
+	// namespace detail {
+	// 	// TODO: Allow for passing a function that asserts some invariances about the
+	// 	// node. For example we may want to check the kind of a node _and_ the value
+	// 	// it contains.
+	// 	template <typename X, typename Y>
+	// 	inline Tree::iterator match_impl(
+	// 		Tree& tree,
+	// 		Tree::iterator it,
+	// 		X&& kind,
+	// 		Y&& err
+	// 	) {
+	// 		bool is_matching = it != tree.end() and it->kind == kind;
 
-			if (not is_matching)
-				report(it->sv, err);
+	// 		if (not is_matching)
+	// 			report(it->sv, err);
 
-			return ++it;
-		}
-	}
+	// 		return ++it;
+	// 	}
+	// }
 
-	template <typename X, typename Y, typename... Ts>
-	inline std::vector<Symbol>::iterator match(
-		std::vector<Symbol>& tree,
-		std::vector<Symbol>::iterator it,
-		X&& kind,
-		Y&& err,
-		Ts&&... pairs
-	) {
-		static_assert(sizeof...(Ts) % 2 == 0);
+	// template <typename X, typename Y, typename... Ts>
+	// inline Tree::iterator match(
+	// 	Tree& tree,
+	// 	Tree::iterator it,
+	// 	X&& kind,
+	// 	Y&& err,
+	// 	Ts&&... pairs
+	// ) {
+	// 	static_assert(sizeof...(Ts) % 2 == 0);
 
-		it = detail::match_impl(tree, it, std::forward<X>(kind), std::forward<Y>(err));
+	// 	it = detail::match_impl(tree, it, std::forward<X>(kind), std::forward<Y>(err));
 
-		if constexpr(sizeof...(Ts) >= 2)
-			it = match(tree, it, std::forward<Ts>(pairs)...);
+	// 	if constexpr(sizeof...(Ts) >= 2)
+	// 		it = match(tree, it, std::forward<Ts>(pairs)...);
 
-		return it;
-	}
+	// 	return it;
+	// }
 }
 
 #endif

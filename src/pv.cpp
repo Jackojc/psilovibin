@@ -24,14 +24,14 @@ extern "C" {
 #include <pv.hpp>
 
 // Debug passes
-#include <printer.hpp>
+// #include <printer.hpp>
 // #include <dot.hpp>
 
 // Passes
-#include <canonicalise.hpp>
-#include <semantic.hpp>
+// #include <canonicalise.hpp>
+// #include <semantic.hpp>
 // #include <fold.hpp>
-#include <timeline.hpp>
+// #include <timeline.hpp>
 
 // Argument parsing
 #include <conflict/conflict.hpp>
@@ -91,7 +91,7 @@ int main(int argc, const char* argv[]) {
 	std::string buf;  // Keep outside of try/catch to keep buffer alive.
 	std::list<std::string> history;
 
-	std::vector<Symbol> tree;  // Persistent AST that is appended to.
+	Tree tree;  // Persistent AST that is appended to.
 
 	Context ctx;
 
@@ -102,9 +102,9 @@ int main(int argc, const char* argv[]) {
 			auto compile_t1 = timer::now();
 
 				Lexer lx { View { current.data(), current.data() + current.size() }};
-				Symbol sym = take(lx, ctx.syms);  // Prepare the lexer.
+				Symbol sym = lx.take();  // Prepare the lexer.
 
-				std::vector<Symbol> prog = program(ctx, lx);
+				Tree prog = program(ctx, lx);
 
 			auto compile_t2 = timer::now();
 
@@ -115,9 +115,9 @@ int main(int argc, const char* argv[]) {
 			// Passes.
 			auto passes_t1 = timer::now();
 
-				canonicalise(ctx, prog);
-				semantic(ctx, prog);
-				timeline(ctx, prog);
+				// canonicalise(ctx, prog);
+				// semantic(ctx, prog);
+				// timeline(ctx, prog);
 
 			auto passes_t2 = timer::now();
 
@@ -126,9 +126,9 @@ int main(int argc, const char* argv[]) {
 			);
 
 			// Everything went okay.
-			tree = cat(tree, prog);
+			tree.cat(prog);
 
-			printer(ctx, tree);
+			println(std::cout, tree);
 			println(std::cout, "[" PV_OK "ok" PV_RESET "]");
 		}
 
